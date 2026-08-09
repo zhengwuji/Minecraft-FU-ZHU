@@ -57,8 +57,13 @@ class ANModuleButton(
                 hovered -> ANTheme.BtnHoverFill
                 else -> ANTheme.BtnFill
             }
-            val borderColor = if (module.enabled) ANTheme.BtnOnBorder else ANTheme.BtnBorder
-            val textColor = if (module.enabled) ANTheme.BtnText.rgb else ANTheme.BtnOffText.rgb
+            val isSearchMatch = anpilot.client.features.gui.component.ANSearchManager.query.isNotBlank() && anpilot.client.features.gui.component.ANSearchManager.matches(module.getDisplayHudName(), module.description)
+            val borderColor = when {
+                isSearchMatch -> java.awt.Color(0xFFF59E0B.toInt(), true)
+                module.enabled -> ANTheme.BtnOnBorder
+                else -> ANTheme.BtnBorder
+            }
+            val textColor = if (module.enabled || isSearchMatch) ANTheme.BtnText.rgb else ANTheme.BtnOffText.rgb
             context.borderedRoundedRect(x, y, width, BUTTON_HEIGHT, ANTheme.BtnRadius, ANTheme.BtnBorderWidth, fillColor, borderColor)
             val bindLabel = module.getBind().displayName
             val showBind = isLeftShiftDown() && !hasTextInputFocused()

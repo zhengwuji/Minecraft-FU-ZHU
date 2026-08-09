@@ -52,6 +52,9 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
     }
 
     override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
+        if (anpilot.client.features.gui.component.ANSearchManager.onKeyPressed(keyCode, scanCode, modifiers)) {
+            return true
+        }
         if (keyCode == InputConstants.KEY_ESCAPE) {
             onClose()
             return true
@@ -60,6 +63,7 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
     }
 
     override fun charTyped(codePoint: Char, modifiers: Int): Boolean {
+        anpilot.client.features.gui.component.ANSearchManager.onCharTyped(codePoint)
         return ANServiceRegistry.runtime.clickGui.charTyped(codePoint, modifiers) || super.charTyped(codePoint, modifiers)
     }
 

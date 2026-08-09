@@ -89,12 +89,30 @@ class ANClickGuiImpl(private val moduleRegistry: ANModuleRegistry) : ANClickGui 
         val contentY = panelY + outerPadding
         val guiPanels = panels ?: createPanels(categories).also { panels = it }
         layoutPanels(guiPanels, contentX, contentY, grid, layoutScale)
+        val searchW = 320f
+        val searchH = 20f
+        val searchX = (context.width - searchW) / 2f
+        val searchY = (panelY - 26f).coerceAtLeast(4f)
+        if (!hudOnly) {
+            anpilot.client.features.gui.component.ANSearchManager.renderSearchBar(context, searchX, searchY, searchW, searchH)
+        }
+
         guiPanels.forEach { it.render(context, mouseX, mouseY, deltaTicks) }
         backgroundBounds?.let { drawFullscreenButton(context, mouseX, mouseY, it) }
         anpilot.client.features.gui.component.ANTooltipManager.renderTooltip(context)
     }
 
     override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
+        if (button == 0) {
+            val window = net.minecraft.client.Minecraft.getInstance().window
+            val panelHeight = (window.guiScaledHeight.toFloat() * 0.82f).coerceIn(320f, 620f)
+            val panelY = (window.guiScaledHeight - panelHeight) / 2f
+            val searchW = 320f
+            val searchH = 20f
+            val searchX = (window.guiScaledWidth - searchW) / 2f
+            val searchY = (panelY - 26f).coerceAtLeast(4f)
+            anpilot.client.features.gui.component.ANSearchManager.handleClick(mouseX, mouseY, searchX, searchY, searchW, searchH)
+        }
         if (button == 0 && fullscreenButtonBounds?.contains(mouseX, mouseY) == true) {
             backgroundFullscreen = !backgroundFullscreen
             return true

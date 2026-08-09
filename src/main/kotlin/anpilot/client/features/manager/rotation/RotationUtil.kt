@@ -21,6 +21,20 @@ object RotationUtil {
         return floatArrayOf(yaw1, Mth.clamp(pitch1, -90.0f, 90.0f))
     }
 
+    fun smoothRotations(current: FloatArray, target: FloatArray, maxStep: Float = 18f, jitter: Float = 0.15f): FloatArray {
+        val yawDiff = Mth.wrapDegrees(target[0] - current[0])
+        val pitchDiff = Mth.wrapDegrees(target[1] - current[1])
+
+        val randomJitter = (Math.random() - 0.5).toFloat() * jitter
+        val yawStep = Mth.clamp(yawDiff, -maxStep, maxStep) + randomJitter
+        val pitchStep = Mth.clamp(pitchDiff, -maxStep, maxStep) + randomJitter
+
+        val newYaw = current[0] + yawStep
+        val newPitch = Mth.clamp(current[1] + pitchStep, -90f, 90f)
+
+        return floatArrayOf(newYaw, newPitch)
+    }
+
     fun getRotationVector(yaw: Float, pitch: Float): Vec3 {
         val f = pitch * (Math.PI.toFloat() / 180.0f)
         val g = -yaw * (Math.PI.toFloat() / 180.0f)
