@@ -6,7 +6,7 @@ import anpilot.client.features.module.ANBaseModule
 import net.minecraft.client.Minecraft
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket
 import net.minecraft.world.entity.EquipmentSlot
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.InventoryMenu
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
@@ -86,9 +86,9 @@ class ANAutoElytra : ANBaseModule(
             val gameMode = minecraft.gameMode ?: return
             val fromId = toMenuSlot(from)
             val toId = InventoryMenu.ARMOR_SLOT_START + (3 - armorSlotId)
-            gameMode.handleContainerInput(player.containerMenu.containerId, fromId, 0, ContainerInput.PICKUP, player)
-            gameMode.handleContainerInput(player.containerMenu.containerId, toId, 0, ContainerInput.PICKUP, player)
-            gameMode.handleContainerInput(player.containerMenu.containerId, fromId, 0, ContainerInput.PICKUP, player)
+            gameMode.handleInventoryMouseClick(player.containerMenu.containerId, fromId, 0, ClickType.PICKUP, player)
+            gameMode.handleInventoryMouseClick(player.containerMenu.containerId, toId, 0, ClickType.PICKUP, player)
+            gameMode.handleInventoryMouseClick(player.containerMenu.containerId, fromId, 0, ClickType.PICKUP, player)
         }
 
         private fun toMenuSlot(slot: Int): Int = if (slot < 9) InventoryMenu.USE_ROW_SLOT_START + slot else slot

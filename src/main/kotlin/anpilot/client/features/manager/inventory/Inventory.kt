@@ -14,13 +14,14 @@ import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.inventory.AbstractContainerMenu
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.InventoryMenu
 import net.minecraft.world.item.AxeItem
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.ShovelItem
 import net.minecraft.world.item.enchantment.Enchantment
+import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.level.block.Block
 
 enum class SilentSwapType {
@@ -62,7 +63,7 @@ object Inventory {
     private val trackedSwaps = ArrayDeque<SwapSnapshot>()
 
     val selectedSlot: Int
-        get() = mc.player?.inventory?.selectedSlot ?: INVALID_SLOT
+        get() = mc.player?.inventory?.selected ?: INVALID_SLOT
 
     val isSwapped: Boolean
         get() = currentSwap.active
@@ -73,13 +74,13 @@ object Inventory {
     val isSilentSwapping: Boolean
         get() {
             val player = mc.player ?: return false
-            return currentSwap.active || multitickSwap.active || normalizedServerSlot(player) != player.inventory.selectedSlot
+            return currentSwap.active || multitickSwap.active || normalizedServerSlot(player) != player.inventory.selected
         }
 
     fun reset() {
         cachedSlot = INVALID_SLOT
         previousSlot = INVALID_SLOT
-        serverSlot = mc.player?.inventory?.selectedSlot ?: INVALID_SLOT
+        serverSlot = mc.player?.inventory?.selected ?: INVALID_SLOT
         currentSwap.reset()
         multitickSwap.reset()
         trackedSwaps.clear()
@@ -102,11 +103,11 @@ object Inventory {
         if (!isHotbarSlot(slot)) return false
 
         if (!isHotbarSlot(serverSlot)) {
-            serverSlot = player.inventory.selectedSlot
+            serverSlot = player.inventory.selected
         }
 
-        if (player.inventory.selectedSlot != slot) {
-            player.inventory.selectedSlot = slot
+        if (player.inventory.selected != slot) {
+            player.inventory.selected = slot
         }
 
         return sendSelectedSlot(slot)
@@ -140,7 +141,7 @@ object Inventory {
         val player = mc.player ?: return false
         if (currentSwap.active) return currentSwap.slotTo == itemSlot
 
-        val selected = player.inventory.selectedSlot
+        val selected = player.inventory.selected
         if (itemSlot == selected) {
             currentSwap.set(type, selected, itemSlot)
             return true
@@ -169,7 +170,7 @@ object Inventory {
 
         val swapType = type ?: currentSwap.type
         val restored = when (swapType) {
-            SilentSwapType.HOTBAR -> sendSelectedSlot(player.inventory.selectedSlot)
+            SilentSwapType.HOTBAR -> sendSelectedSlot(player.inventory.selected)
             SilentSwapType.INVENTORY -> swapInventorySlot(currentSwap.slotTo, currentSwap.slotFrom)
         }
 
@@ -190,7 +191,7 @@ object Inventory {
         val player = mc.player ?: return false
         if (!multitickSwap.active) return false
 
-        val restored = sendSelectedSlot(player.inventory.selectedSlot)
+        val restored = sendSelectedSlot(player.inventory.selected)
         multitickSwap.reset()
         return restored
     }
@@ -321,7 +322,7 @@ object Inventory {
 
         for (slot in HOTBAR_SIZE until MAIN_SIZE) {
             val stack = player.inventory.getItem(slot)
-            if (!stack.isEmpty && ItemStack.isSameItemSameComponents(stack, target)) {
+            if (!stack.isEmpty && ItemStack.isSameItemSameTags(stack, target)) {
                 return slot
             }
         }
@@ -366,22 +367,21 @@ object Inventory {
         val player = mc.player ?: return SearchInvResult.notFound()
 
         if (isWeaknessBypass(player.mainHandItem)) {
-            return SearchInvResult(player.inventory.selectedSlot, true, player.mainHandItem)
+            return SearchInvResult(player.inventory.selected, true, player.mainHandItem)
         }
 
         return findInHotbar(::isWeaknessBypass)
     }
 
-    fun getEnchantmentLevel(stack: ItemStack, enchantment: ResourceKey<Enchantment>): Int {
+    fun getEnchantmentLevel(stack: ItemStack, enchantment: Enchantment): Int {
         if (stack.isEmpty) return 0
-        val holder = stack.enchantments.keySet().firstOrNull { it.`is`(enchantment) } ?: return 0
-        return stack.enchantments.getLevel(holder)
+        return EnchantmentHelper.getItemEnchantmentLevel(enchantment, stack)
     }
 
-    fun hasEnchantment(stack: ItemStack, enchantment: ResourceKey<Enchantment>): Boolean =
+    fun hasEnchantment(stack: ItemStack, enchantment: Enchantment): Boolean =
         getEnchantmentLevel(stack, enchantment) > 0
 
-    fun hasEnchantments(stack: ItemStack, vararg enchantments: ResourceKey<Enchantment>): Boolean =
+    fun hasEnchantments(stack: ItemStack, vararg enchantments: Enchantment): Boolean =
         enchantments.all { hasEnchantment(stack, it) }
 
     fun getHitDamage(weapon: ItemStack, target: Player): Float {
@@ -396,7 +396,7 @@ object Inventory {
             baseDamage += baseDamage / 2f
         }
 
-        val strength = player.getEffect(MobEffects.STRENGTH)
+        val strength = player.getEffect(MobEffects.DAMAGE_BOOST)
         if (strength != null) {
             baseDamage += 3f * (strength.amplifier + 1)
         }
@@ -442,23 +442,23 @@ object Inventory {
     }
 
     fun pickup(slot: Int): Boolean =
-        click(toMenuSlot(slot), 0, ContainerInput.PICKUP)
+        click(toMenuSlot(slot), 0, ClickType.PICKUP)
 
     fun quickMove(slot: Int): Boolean =
-        click(toMenuSlot(slot), 0, ContainerInput.QUICK_MOVE)
+        click(toMenuSlot(slot), 0, ClickType.QUICK_MOVE)
 
     fun drop(slot: Int, all: Boolean = true): Boolean =
-        click(toMenuSlot(slot), if (all) 1 else 0, ContainerInput.THROW)
+        click(toMenuSlot(slot), if (all) 1 else 0, ClickType.THROW)
 
     fun dropHand(): Boolean {
         val player = mc.player ?: return false
         if (player.containerMenu.carried.isEmpty) return true
-        return click(AbstractContainerMenu.SLOT_CLICKED_OUTSIDE, 0, ContainerInput.PICKUP)
+        return click(AbstractContainerMenu.SLOT_CLICKED_OUTSIDE, 0, ClickType.PICKUP)
     }
 
     fun swapInventorySlot(slot: Int, hotbarSlot: Int): Boolean {
         if (!isHotbarSlot(hotbarSlot)) return false
-        return click(toMenuSlot(slot), hotbarSlot, ContainerInput.SWAP)
+        return click(toMenuSlot(slot), hotbarSlot, ClickType.SWAP)
     }
 
     fun move(from: Int, to: Int): Boolean {
@@ -485,10 +485,10 @@ object Inventory {
         return dropHand()
     }
 
-    fun click(slot: Int, button: Int, input: ContainerInput): Boolean {
+    fun click(slot: Int, button: Int, input: ClickType): Boolean {
         val player = mc.player ?: return false
         val gameMode = mc.gameMode ?: return false
-        gameMode.handleContainerInput(player.containerMenu.containerId, slot, button, input, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, slot, button, input, player)
         return true
     }
 
@@ -528,7 +528,7 @@ object Inventory {
         if (!isHotbarSlot(slot)) return false
 
         if (serverSlot == INVALID_SLOT) {
-            serverSlot = player.inventory.selectedSlot
+            serverSlot = player.inventory.selected
         }
 
         if (serverSlot == slot) return true
@@ -541,7 +541,7 @@ object Inventory {
     private fun normalizedServerSlot(player: Player?): Int {
         if (player == null) return INVALID_SLOT
         if (!isHotbarSlot(serverSlot)) {
-            serverSlot = player.inventory.selectedSlot
+            serverSlot = player.inventory.selected
         }
         return serverSlot
     }

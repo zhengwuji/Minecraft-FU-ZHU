@@ -167,7 +167,7 @@ object InventoryUtility {
 
     private fun toolScore(stack: ItemStack): Float =
         Inventory.materialRank(stack).toFloat() +
-            Inventory.getEnchantmentLevel(stack, Enchantments.EFFICIENCY)
+            Inventory.getEnchantmentLevel(stack, Enchantments.BLOCK_EFFICIENCY)
 
     private fun convert(result: SearchInvResult): SearchInvResult =
         SearchInvResult(result.slot, result.found, result.stack)

@@ -12,7 +12,7 @@ import net.minecraft.client.player.LocalPlayer
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket
 import net.minecraft.network.protocol.game.ServerboundSwingPacket
 import net.minecraft.world.InteractionHand
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.item.Items
 import java.util.function.Consumer
 import net.minecraft.world.item.Item
@@ -53,7 +53,6 @@ class ANMiddleClick : ANBaseModule(
     ) : Thread() {
         override fun run() {
             if (!isInventoryMode) {
-                
                 Inventory.switchTo(epSlot)
                 toSleep(delay)
                 mc.gameMode?.useItem(player, InteractionHand.MAIN_HAND)
@@ -61,13 +60,12 @@ class ANMiddleClick : ANBaseModule(
                 toSleep(delay)
                 Inventory.switchTo(originalSlot)
             } else {
-                
-                mc.gameMode?.handleContainerInput(player.containerMenu.containerId, epSlot, originalSlot, ContainerInput.SWAP, player)
+                mc.gameMode?.handleInventoryMouseClick(player.containerMenu.containerId, epSlot, originalSlot, ClickType.SWAP, player)
                 toSleep(delay)
                 mc.gameMode?.useItem(player, InteractionHand.MAIN_HAND)
                 mc.connection?.send(ServerboundSwingPacket(InteractionHand.MAIN_HAND))
                 toSleep(delay)
-                mc.gameMode?.handleContainerInput(player.containerMenu.containerId, epSlot, originalSlot, ContainerInput.SWAP, player)
+                mc.gameMode?.handleInventoryMouseClick(player.containerMenu.containerId, epSlot, originalSlot, ClickType.SWAP, player)
             }
         }
     }
@@ -92,33 +90,32 @@ class ANMiddleClick : ANBaseModule(
 
         if (isSilent) {
             if (!useInv || (useInv && hotbarSlot != -1)) {
-                val originalSlot = player.inventory.selectedSlot
+                val originalSlot = player.inventory.selected
                 if (hotbarSlot != -1) {
-                    player.inventory.selectedSlot = hotbarSlot
+                    player.inventory.selected = hotbarSlot
                     mc.connection?.send(ServerboundSetCarriedItemPacket(hotbarSlot))
                     mc.gameMode?.useItem(player, InteractionHand.MAIN_HAND)
                     mc.connection?.send(ServerboundSwingPacket(InteractionHand.MAIN_HAND))
-                    player.inventory.selectedSlot = originalSlot
+                    player.inventory.selected = originalSlot
                     mc.connection?.send(ServerboundSetCarriedItemPacket(originalSlot))
                 }
             } else {
                 val invSlot = Inventory.findItemInInventory(item).slot
                 if (invSlot != -1) {
-                    mc.gameMode?.handleContainerInput(player.containerMenu.containerId, invSlot, player.inventory.selectedSlot, ContainerInput.SWAP, player)
+                    mc.gameMode?.handleInventoryMouseClick(player.containerMenu.containerId, invSlot, player.inventory.selected, ClickType.SWAP, player)
                     mc.gameMode?.useItem(player, InteractionHand.MAIN_HAND)
                     mc.connection?.send(ServerboundSwingPacket(InteractionHand.MAIN_HAND))
-                    mc.gameMode?.handleContainerInput(player.containerMenu.containerId, invSlot, player.inventory.selectedSlot, ContainerInput.SWAP, player)
+                    mc.gameMode?.handleInventoryMouseClick(player.containerMenu.containerId, invSlot, player.inventory.selected, ClickType.SWAP, player)
                 }
             }
         } else {
-
             if (!useInv || (useInv && hotbarSlot != -1)) {
                 if (hotbarSlot != -1)
-                    PearlThread(player, hotbarSlot, player.inventory.selectedSlot, swapDelay.value.toInt(), false).start()
+                    PearlThread(player, hotbarSlot, player.inventory.selected, swapDelay.value.toInt(), false).start()
             } else {
                 val invSlot = Inventory.findItemInInventory(item).slot
                 if (invSlot != -1)
-                    PearlThread(player, invSlot, player.inventory.selectedSlot, swapDelay.value.toInt(), true).start()
+                    PearlThread(player, invSlot, player.inventory.selected, swapDelay.value.toInt(), true).start()
             }
         }
     }

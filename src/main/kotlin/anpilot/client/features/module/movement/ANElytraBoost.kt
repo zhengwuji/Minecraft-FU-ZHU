@@ -8,7 +8,7 @@ import anpilot.client.features.setting.ANSetting
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket
 import net.minecraft.world.entity.EquipmentSlot
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.InventoryMenu
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Items
@@ -84,8 +84,7 @@ class ANElytraBoost : ANBaseModule(
                     player.z,
                     player.yRot,
                     -90.0f,
-                    false,
-                    player.horizontalCollision
+                    false
                 )
             )
             boosted = true
@@ -126,9 +125,9 @@ class ANElytraBoost : ANBaseModule(
     private fun moveToChestSlot(fromMenuSlot: Int) {
         val player = mc.player ?: return
         val gameMode = mc.gameMode ?: return
-        gameMode.handleContainerInput(player.containerMenu.containerId, fromMenuSlot, 0, ContainerInput.PICKUP, player)
-        gameMode.handleContainerInput(player.containerMenu.containerId, CHEST_MENU_SLOT, 0, ContainerInput.PICKUP, player)
-        gameMode.handleContainerInput(player.containerMenu.containerId, fromMenuSlot, 0, ContainerInput.PICKUP, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, fromMenuSlot, 0, ClickType.PICKUP, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, CHEST_MENU_SLOT, 0, ClickType.PICKUP, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, fromMenuSlot, 0, ClickType.PICKUP, player)
     }
 
     private fun findInventorySlot(item: Item): Int {

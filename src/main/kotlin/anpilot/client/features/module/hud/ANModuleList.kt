@@ -31,7 +31,7 @@ class ANModuleList : ANDraggableHudModule("ModuleList", "已开启的功能模�
     }
 
     private fun labelFor(module: ANBaseModule): String {
-        return if (onlyBind.value && module != ANPilotGuiEditor && module.getBind().key != -1) {
+        return if (onlyBind.value && module.name != "GuiEditor" && module.getBind().key != -1) {
             module.getDisplayName() + " [" + module.getBind().key.toChar() + "]"
         } else module.getDisplayName()
     }

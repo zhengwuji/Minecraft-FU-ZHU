@@ -2,15 +2,13 @@ package anpilot.client.minecraft.gui
 
 import anpilot.client.bootstrap.ANServiceRegistry
 import com.mojang.blaze3d.platform.InputConstants
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import anpilot.client.compat.GuiGraphicsExtractor
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.input.CharacterEvent
-import net.minecraft.client.input.KeyEvent
-import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 import anpilot.client.features.gui.component.activeEditingElement
 import anpilot.client.features.manager.ANConfigManager
+import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.EditBox
 import net.minecraft.client.gui.components.events.GuiEventListener
 
@@ -32,50 +30,42 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
         return super.getFocused()
     }
 
-    override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, deltaTicks: Float) {
+    override fun render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {
         ANServiceRegistry.runtime.clickGui.render(
-            MinecraftGuiRenderContext(context, font, width, height),
+            MinecraftGuiRenderContext(graphics, font, width, height),
             mouseX,
             mouseY,
-            deltaTicks
+            partialTick
         )
     }
 
-    override fun mouseClicked(event: MouseButtonEvent, doubleClick: Boolean): Boolean {
-        return ANServiceRegistry.runtime.clickGui.mouseClicked(event.x(), event.y(), event.button()) || super.mouseClicked(event, doubleClick)
+    override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
+        return ANServiceRegistry.runtime.clickGui.mouseClicked(mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button)
     }
 
-    override fun mouseReleased(event: MouseButtonEvent): Boolean {
-        return ANServiceRegistry.runtime.clickGui.mouseReleased(event.x(), event.y(), event.button()) || super.mouseReleased(event)
+    override fun mouseReleased(mouseX: Double, mouseY: Double, button: Int): Boolean {
+        return ANServiceRegistry.runtime.clickGui.mouseReleased(mouseX, mouseY, button) || super.mouseReleased(mouseX, mouseY, button)
     }
 
-    override fun mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean {
-        return ANServiceRegistry.runtime.clickGui.mouseScrolled(mouseX, mouseY, scrollY) || super.mouseScrolled(mouseX, mouseY, scrollX, scrollY)
+    override fun mouseScrolled(mouseX: Double, mouseY: Double, amount: Double): Boolean {
+        return ANServiceRegistry.runtime.clickGui.mouseScrolled(mouseX, mouseY, amount) || super.mouseScrolled(mouseX, mouseY, amount)
     }
 
-    override fun keyPressed(event: KeyEvent): Boolean {
-        if (event.key() == InputConstants.KEY_ESCAPE) {
+    override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
+        if (keyCode == InputConstants.KEY_ESCAPE) {
             onClose()
             return true
         }
-
-        return ANServiceRegistry.runtime.clickGui.keyPressed(event.key(), event.scancode(), event.modifiers()) || super.keyPressed(event)
+        return ANServiceRegistry.runtime.clickGui.keyPressed(keyCode, scanCode, modifiers) || super.keyPressed(keyCode, scanCode, modifiers)
     }
 
-    override fun charTyped(event: CharacterEvent): Boolean {
-        val text = event.codepointAsString()
-        return text.any { ANServiceRegistry.runtime.clickGui.charTyped(it, 0) } || super.charTyped(event)
+    override fun charTyped(codePoint: Char, modifiers: Int): Boolean {
+        return ANServiceRegistry.runtime.clickGui.charTyped(codePoint, modifiers) || super.charTyped(codePoint, modifiers)
     }
 
-    override fun extractBackground(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, deltaTicks: Float) {
+    override fun renderBackground(graphics: GuiGraphics) {
         if (Minecraft.getInstance().level == null) {
-            super.extractBackground(context, mouseX, mouseY, deltaTicks)
-        }
-    }
-
-    override fun extractTransparentBackground(context: GuiGraphicsExtractor) {
-        if (Minecraft.getInstance().level == null) {
-            super.extractTransparentBackground(context)
+            super.renderBackground(graphics)
         }
     }
 
@@ -84,8 +74,6 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
         activeEditingElement = null
         ANConfigManager.saveCurrent()
     }
-
-    override fun isInGameUi(): Boolean = Minecraft.getInstance().level != null
 
     override fun isPauseScreen(): Boolean = false
 }

@@ -2,9 +2,9 @@ package anpilot.client.features.event.impl
 
 import anpilot.client.bootstrap.ANServiceRegistry
 import anpilot.client.minecraft.gui.MinecraftGuiRenderContext
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import anpilot.client.compat.GuiGraphicsExtractor
 
 object ANMinecraftEvents {
     fun tick() {

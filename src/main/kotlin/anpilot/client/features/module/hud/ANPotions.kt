@@ -26,8 +26,8 @@ class ANPotions : ANDraggableHudModule("Potions", "当前玩家生效的药水�
         val lines = effects.map { effect ->
             val duration = effect.duration / 20
             val time = "%d:%02d".format(duration / 60, duration % 60)
-            val text = effect.effect.value().displayName.string + (effect.amplifier + 1) + "  " + time
-            val fill = when (effect.effect.value().category) {
+            val text = effect.effect.displayName.string + (effect.amplifier + 1) + "  " + time
+            val fill = when (effect.effect.category) {
                 MobEffectCategory.BENEFICIAL -> Color(beneficialColor.value.getColor(), true)
                 MobEffectCategory.HARMFUL -> Color(harmfulColor.value.getColor(), true)
                 else -> HudColors.panelFillColor

@@ -118,7 +118,7 @@ class ANBotTask : ANBaseModule(
                 when (hit.type) {
                     HitResult.Type.ENTITY -> {
                         val entityHit = hit as EntityHitResult
-                        gameMode.interact(mcPlayer, entityHit.entity, entityHit, InteractionHand.MAIN_HAND)
+                        gameMode.interact(mcPlayer, entityHit.entity, InteractionHand.MAIN_HAND)
                         mcPlayer.swing(InteractionHand.MAIN_HAND)
                     }
                     HitResult.Type.BLOCK -> {

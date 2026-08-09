@@ -32,7 +32,7 @@ class ANTargetInfo : ANDraggableHudModule("TargetInfo", "附近最近敌方目�
 
 
         val info = mc.connection?.getPlayerInfo(target.uuid)
-        if (info != null) context.head(info.skin, visualX + scaled(5f), visualY + scaled(8f), scaled(30f), ANTheme.White)
+        if (info != null) context.head(anpilot.client.compat.PlayerSkin(info.skinLocation), visualX + scaled(5f), visualY + scaled(8f), scaled(30f), ANTheme.White)
 
         val nameX = visualX + scaled(40f)
         val nameY = visualY + scaled(5f)

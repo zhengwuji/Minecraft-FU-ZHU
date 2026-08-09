@@ -14,7 +14,6 @@ import net.minecraft.network.protocol.game.ServerboundInteractPacket
 import net.minecraft.world.entity.Pose
 import net.minecraft.world.phys.Vec3
 import java.util.Optional
-import net.minecraft.network.protocol.game.ServerboundAttackPacket
 
 class ANFakePlayer : ANBaseModule(
     name = "FakePlayer",
@@ -109,9 +108,9 @@ class ANFakePlayer : ANBaseModule(
         val fp = fakePlayer ?: return
 
         val packet = event.packet
-        if (packet is ServerboundAttackPacket) {
-            val attacked = level.getEntity(packet.entityId())
-            if (attacked == fp) {
+        if (packet is ServerboundInteractPacket) {
+            val attacked = level.entitiesForRendering().find { it == fp }
+            if (attacked != null) {
                 fp.simulateAttackFrom(player)
             }
         }
@@ -122,7 +121,7 @@ class ANFakePlayer : ANBaseModule(
         val fp = fakePlayer ?: return
         val packet = event.packet
         if (packet is ClientboundExplodePacket) {
-            fp.simulateExplosionFrom(packet.center())
+            fp.simulateExplosionFrom(Vec3(packet.x, packet.y, packet.z))
         }
     }
 

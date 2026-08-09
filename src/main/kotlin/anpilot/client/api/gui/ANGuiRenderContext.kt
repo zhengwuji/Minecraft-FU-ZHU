@@ -2,10 +2,10 @@ package anpilot.client.api.gui
 
 import net.minecraft.client.gui.navigation.ScreenRectangle
 import anpilot.client.renderer.render.ANProceduralDecorRenderer
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.entity.player.PlayerSkin
+import anpilot.client.compat.PlayerSkin
 import java.awt.Color
 
 interface ANGuiRenderContext {

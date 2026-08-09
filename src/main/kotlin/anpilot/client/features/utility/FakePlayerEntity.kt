@@ -7,11 +7,6 @@ import net.minecraft.world.entity.player.Player
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
-
-
-
-
-
 open class FakePlayerEntity(player: Player, name: String) : RemotePlayer(
     Minecraft.getInstance().level!!,
     GameProfile(FAKE_UUID, name)
@@ -19,7 +14,6 @@ open class FakePlayerEntity(player: Player, name: String) : RemotePlayer(
     val playerRef: Player = player
 
     init {
-        
         setPos(player.x, player.y, player.z)
         yRot = player.yRot
         xRot = player.xRot
@@ -27,23 +21,15 @@ open class FakePlayerEntity(player: Player, name: String) : RemotePlayer(
         yBodyRot = player.yBodyRot
         attackAnim = player.attackAnim
 
-        
         val modelParts: Byte = player.entityData.get(Player.DATA_PLAYER_MODE_CUSTOMISATION)
         entityData.set(Player.DATA_PLAYER_MODE_CUSTOMISATION, modelParts)
 
-        
-        attributes.assignAllValues(player.attributes)
-
-        
         isShiftKeyDown = player.isShiftKeyDown
         isSwimming = player.isSwimming
         setPose(player.pose)
         health = player.health
 
-        
         inventory.replaceWith(player.inventory)
-
-        
         id = CURRENT_ID.incrementAndGet()
     }
 
@@ -51,7 +37,7 @@ open class FakePlayerEntity(player: Player, name: String) : RemotePlayer(
 
     fun spawnPlayer() {
         unsetRemoved()
-        Minecraft.getInstance().level?.addEntity(this)
+        Minecraft.getInstance().level?.addFreshEntity(this)
     }
 
     fun despawnPlayer() {

@@ -19,16 +19,15 @@ import anpilot.client.features.utility.ANTimer
 import anpilot.client.minecraft.mixin.accessor.ANMultiPlayerGameModeAccessor
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
-import net.minecraft.core.component.DataComponents
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket
-import net.minecraft.network.protocol.game.ServerboundAttackPacket
+import net.minecraft.network.protocol.game.ServerboundInteractPacket
 import net.minecraft.network.protocol.game.ServerboundSwingPacket
 import net.minecraft.tags.ItemTags
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntitySelector
-import net.minecraft.world.entity.EquipmentSlotGroup
+import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.animal.Animal
@@ -328,8 +327,8 @@ class ANKillAura : ANBaseModule(
         }
 
         rotationPoint = rotationPoint.add(rotationMotion)
-        val halfX = (lengthX - 0.05) * 0.5
-        val halfZ = (lengthZ - 0.05) * 0.5
+        val halfX = (lengthX.toDouble() - 0.05) * 0.5
+        val halfZ = (lengthZ.toDouble() - 0.05) * 0.5
 
         if (rotationPoint.x >= halfX) {
             rotationMotion = Vec3(-randomStep(0.003f, 0.03f).toDouble(), rotationMotion.y, rotationMotion.z)
@@ -403,7 +402,7 @@ class ANKillAura : ANBaseModule(
         if (!canHitTarget(player, target)) return
 
         val swapped = when {
-            weapon.slot == Inventory.INVALID_SLOT || weapon.slot == player.inventory.selectedSlot -> true
+            weapon.slot == Inventory.INVALID_SLOT || weapon.slot == player.inventory.selected -> true
             silentSwap.value -> Inventory.startSwap(weapon.slot)
             autoSwap.value -> Inventory.switchTo(weapon.slot)
             else -> true
@@ -464,7 +463,7 @@ class ANKillAura : ANBaseModule(
         (mc.gameMode as? ANMultiPlayerGameModeAccessor)?.`anpilot$ensureHasSentCarriedItem`()
 
         
-        connection.send(ServerboundAttackPacket(entity.id))
+        connection.send(ServerboundInteractPacket.createAttackPacket(entity, player.isShiftKeyDown))
 
         
         if (swing.value) {
@@ -518,7 +517,7 @@ class ANKillAura : ANBaseModule(
             start,
             end,
             searchBox,
-            EntitySelector.CAN_BE_PICKED.and { entity -> entity !== player && !entity.isSpectator },
+            EntitySelector.NO_SPECTATORS.and { entity -> entity !== player },
             traceRange * traceRange
         ) ?: return null
 
@@ -644,16 +643,9 @@ class ANKillAura : ANBaseModule(
     private fun getAttackSpeed(stack: ItemStack): Double {
         val player = mc.player ?: return 4.0
         var speed = player.getAttributeBaseValue(Attributes.ATTACK_SPEED)
-        val modifiers = stack.get(DataComponents.ATTRIBUTE_MODIFIERS)
-        if (modifiers != null) {
-            for (entry in modifiers.modifiers()) {
-                if (entry.attribute() == Attributes.ATTACK_SPEED) {
-                    val slot = entry.slot()
-                    if (slot == EquipmentSlotGroup.MAINHAND || slot == EquipmentSlotGroup.ANY) {
-                        speed += entry.modifier().amount()
-                    }
-                }
-            }
+        val modifiers = stack.getAttributeModifiers(EquipmentSlot.MAINHAND).get(Attributes.ATTACK_SPEED)
+        for (modifier in modifiers) {
+            speed += modifier.amount
         }
         return speed
     }

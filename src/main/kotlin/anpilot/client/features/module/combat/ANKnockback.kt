@@ -4,8 +4,6 @@ import anpilot.client.api.module.ANModuleCategory
 import anpilot.client.features.event.ANEventHandler
 import anpilot.client.features.event.impl.PacketEvent
 import anpilot.client.features.module.ANBaseModule
-import anpilot.client.minecraft.mixin.accessor.ANServerboundInteractPacketAccessor
-import net.minecraft.client.Minecraft
 import net.minecraft.network.protocol.game.ServerboundInteractPacket
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket
 
@@ -19,10 +17,8 @@ class ANKnockback : ANBaseModule(
     fun onSendPacket(event: PacketEvent.Send) {
         val packet = event.packet
         if (packet is ServerboundInteractPacket) {
-            val accessor = (packet as Any) as? ANServerboundInteractPacketAccessor
-            val actionStr = accessor?.action?.javaClass?.simpleName ?: ""
-            val actionFullStr = accessor?.action?.toString() ?: ""
-            if (actionStr.contains("Attack", ignoreCase = true) || actionFullStr.contains("ATTACK", ignoreCase = true)) {
+            val str = packet.toString()
+            if (str.contains("ATTACK", ignoreCase = true) || str.contains("Attack", ignoreCase = true)) {
                 val player = mc.player ?: return
                 player.connection.send(
                     ServerboundPlayerCommandPacket(player, ServerboundPlayerCommandPacket.Action.START_SPRINTING)

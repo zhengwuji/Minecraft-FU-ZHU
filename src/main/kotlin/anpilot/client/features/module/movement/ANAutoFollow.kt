@@ -87,7 +87,7 @@ class ANAutoFollow : ANBaseModule(
         val gameMode = mc.gameMode ?: return false
         val connection = mc.connection ?: return false
         val inventory = player.inventory
-        val originalSlot = inventory.selectedSlot
+        val originalSlot = inventory.selected
         var fireworkSlot = -1
         
         for (slot in 0 until 9) {
@@ -100,7 +100,7 @@ class ANAutoFollow : ANBaseModule(
         if (fireworkSlot == -1) return false
 
         if (originalSlot != fireworkSlot) {
-            inventory.selectedSlot = fireworkSlot
+            inventory.selected = fireworkSlot
             connection.send(ServerboundSetCarriedItemPacket(fireworkSlot))
         }
 
@@ -108,7 +108,7 @@ class ANAutoFollow : ANBaseModule(
         connection.send(ServerboundSwingPacket(InteractionHand.MAIN_HAND))
 
         if (originalSlot != fireworkSlot) {
-            inventory.selectedSlot = originalSlot
+            inventory.selected = originalSlot
             connection.send(ServerboundSetCarriedItemPacket(originalSlot))
         }
         return true

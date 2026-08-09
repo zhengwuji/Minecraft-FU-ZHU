@@ -5,24 +5,24 @@ import anpilot.client.renderer.ANGUIRenderer
 import anpilot.client.renderer.font.ANFontRenderer
 import anpilot.client.renderer.render.ANProceduralDecorRenderer
 import net.minecraft.client.gui.Font
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.navigation.ScreenRectangle
-import net.minecraft.client.renderer.RenderPipelines
-import net.minecraft.resources.Identifier
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.entity.player.PlayerSkin
+import anpilot.client.compat.PlayerSkin
 import java.awt.Color
 import kotlin.math.max
 import kotlin.math.min
 import net.minecraft.client.Minecraft
 
 class MinecraftGuiRenderContext(
-    private val context: GuiGraphicsExtractor,
+    val guiGraphics: GuiGraphics,
     font: Font,
     override val width: Int,
     override val height: Int
 ) : ANGuiRenderContext {
+    val context: GuiGraphics get() = guiGraphics
     private val fontRenderer = sharedFontRenderer ?: ANFontRenderer(font).also { sharedFontRenderer = it }
     private val scissorStack = ArrayDeque<ScreenRectangle>()
 
@@ -41,19 +41,19 @@ class MinecraftGuiRenderContext(
         ANGUIRenderer.rect(context, x, y, width, height, color)
     }
 
-    override fun imageRect(texture: Identifier, x: Float, y: Float, width: Float, height: Float, color: Color) {
+    override fun imageRect(texture: ResourceLocation, x: Float, y: Float, width: Float, height: Float, color: Color) {
         ANGUIRenderer.imageRect(context, texture, x, y, width, height, color, scissorArea)
     }
 
-    override fun roundedImageRect(texture: Identifier, x: Float, y: Float, width: Float, height: Float, radius: Float, color: Color) {
+    override fun roundedImageRect(texture: ResourceLocation, x: Float, y: Float, width: Float, height: Float, radius: Float, color: Color) {
         ANGUIRenderer.roundedImageRect(context, texture, x, y, width, height, radius, color, scissorArea)
     }
 
     override fun head(skin: PlayerSkin, x: Float, y: Float, size: Float, color: Color) {
         val drawSize = size.toInt()
-        val texture = skin.body().texturePath()
-        context.blit(RenderPipelines.GUI_TEXTURED, texture, x.toInt(), y.toInt(), 8f, 8f, drawSize, drawSize, 8, 8, 64, 64)
-        context.blit(RenderPipelines.GUI_TEXTURED, texture, x.toInt(), y.toInt(), 40f, 8f, drawSize, drawSize, 8, 8, 64, 64)
+        val texture = skin.texture
+        context.blit(texture, x.toInt(), y.toInt(), 8f, 8f, drawSize, drawSize, 64, 64)
+        context.blit(texture, x.toInt(), y.toInt(), 40f, 8f, drawSize, drawSize, 64, 64)
     }
 
     override fun playerModel(x: Int, y: Int, width: Int, height: Int, size: Int, mouseX: Float, mouseY: Float, entity: LivingEntity) {
@@ -62,12 +62,12 @@ class MinecraftGuiRenderContext(
 
     override fun item(stack: ItemStack, x: Float, y: Float, scale: Float, decorations: Boolean) {
         if (stack.isEmpty) return
-        context.pose().pushMatrix()
-        context.pose().translate(x, y)
-        context.pose().scale(scale, scale)
-        context.item(stack.copy(), 0, 0)
-        if (decorations) context.itemDecorations(Minecraft.getInstance().font, stack, 0, 0)
-        context.pose().popMatrix()
+        context.pose().pushPose()
+        context.pose().translate(x.toDouble(), y.toDouble(), 0.0)
+        context.pose().scale(scale, scale, 1.0f)
+        context.renderItem(stack.copy(), 0, 0)
+        if (decorations) context.renderItemDecorations(Minecraft.getInstance().font, stack, 0, 0)
+        context.pose().popPose()
     }
 
     override fun gradientRect(x: Float, y: Float, width: Float, height: Float, topLeftColor: Color, topRightColor: Color, bottomRightColor: Color, bottomLeftColor: Color) {
@@ -95,7 +95,7 @@ class MinecraftGuiRenderContext(
     }
 
     override fun roundedBorderDecor(
-        texture: Identifier,
+        texture: ResourceLocation,
         x: Float,
         y: Float,
         width: Float,

@@ -8,10 +8,9 @@ import anpilot.client.minecraft.duck.ANGuiMessageLineExt
 import com.mojang.authlib.GameProfile
 import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import anpilot.client.compat.GuiGraphicsExtractor
 import net.minecraft.client.multiplayer.PlayerInfo
-import net.minecraft.client.multiplayer.chat.GuiMessage
-import net.minecraft.client.renderer.RenderPipelines
+import net.minecraft.client.GuiMessage
 import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.PlayerChatMessage
 import net.minecraft.world.entity.player.Player
@@ -64,7 +63,7 @@ class ANChatUtils : ANBaseModule(
         var spamCounter = 1
         var matchingLines = 0
 
-        fun getAsString(text: FormattedCharSequence): String {
+        fun getFormattedAsString(text: FormattedCharSequence): String {
             val sb = StringBuilder()
             text.accept { _, _, cp ->
                 sb.appendCodePoint(cp)
@@ -73,13 +72,13 @@ class ANChatUtils : ANBaseModule(
             return sb.toString()
         }
 
-        fun getAsString(visible: GuiMessage.Line): String = getAsString(visible.content())
+        fun getLineAsString(visible: GuiMessage.Line): String = getFormattedAsString(visible.content())
 
         for (i in trimmedMessages.indices.reversed()) {
-            val oldLine = getAsString(trimmedMessages[i])
+            val oldLine = getLineAsString(trimmedMessages[i])
 
             if (matchingLines <= newLines.size - 1) {
-                val newLine = getAsString(newLines[matchingLines])
+                val newLine = getFormattedAsString(newLines[matchingLines])
 
                 if (matchingLines < newLines.size - 1) {
                     if (oldLine == newLine) {
@@ -96,7 +95,7 @@ class ANChatUtils : ANBaseModule(
                 }
 
                 if (i > 0 && matchingLines == newLines.size - 1) {
-                    val nextOldLine = getAsString(trimmedMessages[i - 1])
+                    val nextOldLine = getLineAsString(trimmedMessages[i - 1])
                     val twoLines = oldLine + nextOldLine
                     val addedText = twoLines.substring(newLine.length)
 
@@ -220,13 +219,6 @@ class ANChatUtils : ANBaseModule(
         if (timeStamp.value) out.append(timeComponent())
         if (avatarMark.value) out.append(Component.literal(HEAD_SPACER))
         out.append(component)
-        return out
-    }
-
-    private fun decoratePlain(text: String): Component {
-        val out = Component.literal("")
-        if (timeStamp.value) out.append(timeComponent())
-        out.append(Component.literal(text))
         return out
     }
 
@@ -405,15 +397,25 @@ class ANChatUtils : ANBaseModule(
 
             val connection = Minecraft.getInstance().connection ?: return
             val sender = lineExt.`anpilot$getSender`()
-            val content = line.parent().content().string
+            val content = getLineAsString(line)
             val playerInfo = resolvePlayerInfo(sender, content) ?: return
-            val skin = playerInfo.skin
+            val texture = playerInfo.skinLocation
 
-            val texture = skin.body().texturePath()
             val x = playerHeadX()
-            graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 8f, 8f, 8, 8, 8, 8, 64, 64)
-            graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 40f, 8f, 8, 8, 8, 8, 64, 64)
+            graphics.blit(texture, x, y, 8f, 8f, 8, 8, 64, 64)
+            graphics.blit(texture, x, y, 40f, 8f, 8, 8, 64, 64)
         }
+
+        private fun getFormattedAsString(text: FormattedCharSequence): String {
+            val sb = StringBuilder()
+            text.accept { _, _, cp ->
+                sb.appendCodePoint(cp)
+                true
+            }
+            return sb.toString()
+        }
+
+        fun getLineAsString(visible: GuiMessage.Line): String = getFormattedAsString(visible.content())
 
         private fun resolvePlayerInfo(sender: GameProfile?, text: String): PlayerInfo? {
             val connection = Minecraft.getInstance().connection ?: return null

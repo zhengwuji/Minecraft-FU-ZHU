@@ -3,12 +3,11 @@ package anpilot.client.features.ai.utils
 import anpilot.client.features.ai.utils.litematic.LitematicSectionMeshCache
 import anpilot.client.renderer.ANColor
 import com.mojang.blaze3d.vertex.PoseStack
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
+import anpilot.client.compat.Identifier
 import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.RenderType
 import net.minecraft.client.renderer.LevelRenderer
-import net.minecraft.client.renderer.block.BlockModelRenderState
-import net.minecraft.client.renderer.block.BlockModelResolver
-import net.minecraft.client.renderer.block.model.BlockDisplayContext
 import net.minecraft.client.renderer.rendertype.ANPilotRenderTypes
 import net.minecraft.client.renderer.texture.OverlayTexture
 import net.minecraft.client.resources.model.ModelManager
@@ -20,7 +19,6 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.NbtAccounter
 import net.minecraft.nbt.NbtIo
-import net.minecraft.resources.Identifier
 import net.minecraft.world.level.block.RenderShape
 import net.minecraft.world.level.block.Rotation as BlockRotation
 import net.minecraft.world.level.block.Blocks
@@ -39,10 +37,6 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties
 
 object LitematicLoader {
     private val logger = LoggerFactory.getLogger("ANPilotLitematicLoader")
-    private val blockDisplayContext: BlockDisplayContext by lazy { BlockDisplayContext.create() }
-    private val blockModelStateCache = HashMap<BlockState, BlockModelRenderState>()
-    private var blockModelResolver: BlockModelResolver? = null
-    private var blockModelManager: ModelManager? = null
     private val textureMeshCache = LitematicSectionMeshCache()
 
     fun getProxyState(state: BlockState): BlockState {
@@ -85,14 +79,7 @@ object LitematicLoader {
         val player = Minecraft.getInstance().player ?: return
         val level = Minecraft.getInstance().level
         val camera = context.levelState().cameraRenderState.pos
-        val frustum = context.levelState().cameraRenderState.cullFrustum
-        val pose = context.poseStack().last().copy().apply { setIdentity() }
-        val visibleSections = ArrayList<RenderSection>()
-
-        for (section in cache.sections) {
-            if (!frustum.isVisible(section.bounds)) continue
-            visibleSections += section
-        }
+        val visibleSections = ArrayList<RenderSection>(cache.sections)
 
         if (visibleSections.isEmpty()) return
         if (level != null) {
@@ -108,13 +95,17 @@ object LitematicLoader {
                 for (section in visibleSections) {
                     for (block in section.blocks) {
                         if (!block.shouldRender(options.renderBuilt)) continue
-                        if (isCropOrPlant(block.state.block)) continue
-                        val color = statusColor(block.status, options)
-                        if (color.alpha <= 0) continue
-                        val mask = if (options.onlyTopFace) (1 shl Direction.UP.ordinal) else block.exposedFaceMask
-                        fillBox(block.pos, camera, pose, color, mask) { x, y, z, c ->
-                            vertexConsumer.addVertex(pose, x, y, z).setColor(c.red, c.green, c.blue, c.alpha)
-                        }
+                        val color = options.colorFor(block.status) ?: continue
+                        renderFilledBox(
+                            vertexConsumer,
+                            context.poseStack(),
+                            block.pos,
+                            camera,
+                            color.red / 255f,
+                            color.green / 255f,
+                            color.blue / 255f,
+                            options.fillAlpha
+                        )
                     }
                 }
             }
@@ -125,21 +116,17 @@ object LitematicLoader {
                 for (section in visibleSections) {
                     for (block in section.blocks) {
                         if (!block.shouldRender(options.renderBuilt)) continue
-                        if (isCropOrPlant(block.state.block)) continue
-                        val color = statusColor(block.status, options)
-                        if (color.alpha <= 0) continue
-                        val mask = if (options.onlyTopFace) (1 shl Direction.UP.ordinal) else block.exposedFaceMask
-                        lineBox(block.pos, camera, mask) { x1, y1, z1, x2, y2, z2 ->
-                            val normal = lineNormal(x1, y1, z1, x2, y2, z2)
-                            vertexConsumer.addVertex(pose, x1, y1, z1)
-                                .setColor(color.red, color.green, color.blue, color.alpha)
-                                .setNormal(pose, normal.x, normal.y, normal.z)
-                                .setLineWidth(1.5f)
-                            vertexConsumer.addVertex(pose, x2, y2, z2)
-                                .setColor(color.red, color.green, color.blue, color.alpha)
-                                .setNormal(pose, normal.x, normal.y, normal.z)
-                                .setLineWidth(1.5f)
-                        }
+                        val color = options.colorFor(block.status) ?: continue
+                        renderBoxOutline(
+                            vertexConsumer,
+                            context.poseStack(),
+                            block.pos,
+                            camera,
+                            color.red / 255f,
+                            color.green / 255f,
+                            color.blue / 255f,
+                            options.outlineAlpha
+                        )
                     }
                 }
             }
@@ -147,622 +134,23 @@ object LitematicLoader {
     }
 
     private fun isCustomGeometryWithinBudget(
-        visibleSections: List<RenderSection>,
+        sections: List<RenderSection>,
         options: RenderOptions,
         kind: GeometryKind
     ): Boolean {
-        var vertices = 0L
-        for (section in visibleSections) {
+        val multiplier = if (kind == GeometryKind.FILL) 24 else 24
+        var candidateBlocks = 0
+        for (section in sections) {
             for (block in section.blocks) {
                 if (!block.shouldRender(options.renderBuilt)) continue
-                if (isCropOrPlant(block.state.block)) continue
-                if (statusColor(block.status, options).alpha <= 0) continue
-                val mask = if (options.onlyTopFace) (1 shl Direction.UP.ordinal) else block.exposedFaceMask
-                vertices += when (kind) {
-                    GeometryKind.FILL -> mask.countOneBits() * 4L
-                    GeometryKind.OUTLINE -> outlineVertexCount(mask).toLong()
+                if (options.colorFor(block.status) == null) continue
+                candidateBlocks++
+                if (candidateBlocks * multiplier > options.customGeometryVertexBudget) {
+                    return false
                 }
-                if (vertices > MAX_CUSTOM_GEOMETRY_VERTICES) return false
             }
         }
         return true
-    }
-
-    fun clearTextureMeshes() {
-        textureMeshCache.clear()
-    }
-
-    private fun loadLitematic(file: File): Projection {
-        val root = NbtIo.readCompressed(file.toPath(), NbtAccounter.create(256L * 1024L * 1024L))
-        val metadata = root.getCompound("Metadata").orElse(null)
-        val projectionName = metadata?.getString("Name")?.orElse(null)?.takeIf { it.isNotBlank() } ?: file.name
-        val author = metadata?.getString("Author")?.orElse(null)?.takeIf { it.isNotBlank() } ?: UNKNOWN_AUTHOR
-        val regions = root.getCompoundOrEmpty("Regions")
-        val blocks = ArrayList<ProjectedBlock>()
-
-        for (regionName in regions.keySet()) {
-            val region = regions.getCompound(regionName).orElse(null) ?: continue
-            val regionPos = region.getBlockPos("Position")
-            val size = region.getBlockPos("Size")
-            val min = BlockPos(
-                if (size.x < 0) regionPos.x + size.x + 1 else regionPos.x,
-                if (size.y < 0) regionPos.y + size.y + 1 else regionPos.y,
-                if (size.z < 0) regionPos.z + size.z + 1 else regionPos.z
-            )
-            val width = abs(size.x)
-            val height = abs(size.y)
-            val length = abs(size.z)
-            if (width <= 0 || height <= 0 || length <= 0) continue
-
-            val palette = ArrayList<BlockState>()
-            region.getListOrEmpty("BlockStatePalette").compoundStream().forEach { tag ->
-                palette += parsePaletteState(tag) ?: Blocks.AIR.defaultBlockState()
-            }
-            if (palette.isEmpty()) continue
-
-            val packed = region.get("BlockStates")?.asLongArray()?.orElse(null) ?: continue
-            val bits = ceilLog2(palette.size).coerceAtLeast(2)
-            val mask = (1L shl bits) - 1L
-            val total = width * height * length
-
-            for (index in 0 until total) {
-                val paletteIndex = unpack(packed, index, bits, mask)
-                val state = palette.getOrNull(paletteIndex) ?: continue
-                if (state.isAir) continue
-                val x = index % width
-                val y = (index / (width * length))
-                val z = (index / width) % length
-                blocks += ProjectedBlock(BlockPos(min.x + x, min.y + y, min.z + z), state)
-            }
-        }
-
-        return Projection(projectionName, blocks, Bounds.of(blocks), author)
-    }
-
-    private fun loadTextProjection(file: File): Projection {
-        val blocks = file.readLines().mapNotNull(::parseTextLine)
-        return Projection(file.name, blocks, Bounds.of(blocks), UNKNOWN_AUTHOR)
-    }
-
-    private fun parseTextLine(line: String): ProjectedBlock? {
-        val clean = line.substringBefore('#').trim()
-        if (clean.isEmpty()) return null
-        val parts = clean.split(',', ' ', '\t', ';').filter { it.isNotBlank() }
-        if (parts.size < 4) return null
-
-        val xyzFirst = parts[0].toIntOrNull() != null
-        val x = (if (xyzFirst) parts[0] else parts[1]).toIntOrNull() ?: return null
-        val y = (if (xyzFirst) parts[1] else parts[2]).toIntOrNull() ?: return null
-        val z = (if (xyzFirst) parts[2] else parts[3]).toIntOrNull() ?: return null
-        val blockId = if (xyzFirst) parts[3] else parts[0]
-        val state = blockStateById(blockId) ?: return null
-        if (state.isAir) return null
-        return ProjectedBlock(BlockPos(x, y, z), state)
-    }
-
-    private fun parsePaletteState(tag: CompoundTag): BlockState? {
-        val name = tag.getString("Name").orElse(null) ?: return null
-        val properties = tag.getCompound("Properties").orElse(null)
-        val stateString = if (properties == null || properties.isEmpty) {
-            name
-        } else {
-            val props = properties.keySet().sorted().mapNotNull { key ->
-                val value = properties.getString(key).orElse(null) ?: return@mapNotNull null
-                "$key=$value"
-            }.joinToString(",")
-            "$name[$props]"
-        }
-        return blockStateById(stateString)
-    }
-
-    private fun blockStateById(id: String): BlockState? {
-        val normalizedBlockId = id.substringBefore('[').let { if (it.contains(':')) it else "minecraft:$it" }
-        val identifier = Identifier.tryParse(normalizedBlockId) ?: return null
-        if (!BuiltInRegistries.BLOCK.containsKey(identifier)) return null
-        val propertySuffix = id.indexOf('[').takeIf { it >= 0 }?.let { id.substring(it) }.orEmpty()
-        val normalized = normalizedBlockId + propertySuffix
-        return runCatching {
-            BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, normalized, false).blockState()
-        }.getOrNull()
-    }
-
-    private fun CompoundTag.getBlockPos(name: String): BlockPos {
-        val tag = getCompoundOrEmpty(name)
-        return BlockPos(
-            tag.getIntOr("x", tag.getIntOr("X", 0)),
-            tag.getIntOr("y", tag.getIntOr("Y", 0)),
-            tag.getIntOr("z", tag.getIntOr("Z", 0))
-        )
-    }
-
-    private fun unpack(data: LongArray, index: Int, bits: Int, mask: Long): Int {
-        val bitIndex = index * bits
-        val startLong = bitIndex ushr 6
-        val startOffset = bitIndex and 63
-        if (startLong >= data.size) return 0
-        var value = data[startLong] ushr startOffset
-        val endOffset = startOffset + bits
-        if (endOffset > 64 && startLong + 1 < data.size) {
-            value = value or (data[startLong + 1] shl (64 - startOffset))
-        }
-        return (value and mask).toInt()
-    }
-
-    private fun ceilLog2(value: Int): Int {
-        if (value <= 1) return 1
-        return 32 - Integer.numberOfLeadingZeros(value - 1)
-    }
-
-    private fun statusColor(actual: BlockState?, expected: BlockState, options: RenderOptions): ANColor {
-        if (actual == null || actual.isAir) return options.missingColor
-        if (actual.block == expected.block) return options.builtColor
-        return options.wrongColor
-    }
-
-    private fun statusColor(status: BlockStatus, options: RenderOptions): ANColor = when (status) {
-        BlockStatus.UNKNOWN -> options.missingColor
-        BlockStatus.MISSING -> options.missingColor
-        BlockStatus.WRONG -> options.wrongColor
-        BlockStatus.BUILT -> options.builtColor
-    }
-
-    private fun renderTexturedBlock(context: LevelRenderContext, block: RenderBlock, camera: Vec3, poseStack: PoseStack) {
-        val stateToRender = getProxyState(block.state)
-        if (stateToRender.renderShape != RenderShape.MODEL) return
-        val level = Minecraft.getInstance().level ?: return
-        val modelState = blockModelRenderState(stateToRender)
-        if (modelState.isEmpty) return
-        val light = LevelRenderer.getLightCoords(level, block.pos)
-
-        poseStack.pushPose()
-        poseStack.translate(block.pos.x - camera.x, block.pos.y - camera.y, block.pos.z - camera.z)
-        modelState.submit(poseStack, context.submitNodeCollector(), light, OverlayTexture.NO_OVERLAY, -1)
-        poseStack.popPose()
-    }
-
-    private fun blockModelRenderState(state: BlockState): BlockModelRenderState {
-        val manager = Minecraft.getInstance().modelManager
-        if (blockModelManager !== manager) {
-            blockModelManager = manager
-            blockModelResolver = BlockModelResolver(manager)
-            blockModelStateCache.clear()
-        }
-
-        return blockModelStateCache.getOrPut(state) {
-            BlockModelRenderState().also { renderState ->
-                blockModelResolver?.update(renderState, state, blockDisplayContext)
-            }
-        }
-    }
-
-    private fun fillBox(
-        pos: BlockPos,
-        camera: Vec3,
-        pose: PoseStack.Pose,
-        color: ANColor,
-        faceMask: Int = ALL_FACES_MASK,
-        vertex: (Float, Float, Float, ANColor) -> Unit
-    ) {
-        val x1 = (pos.x - camera.x).toFloat()
-        val y1 = (pos.y - camera.y).toFloat()
-        val z1 = (pos.z - camera.z).toFloat()
-        val x2 = x1 + 1f
-        val y2 = y1 + 1f
-        val z2 = z1 + 1f
-
-        fun quad(ax: Float, ay: Float, az: Float, bx: Float, by: Float, bz: Float, cx: Float, cy: Float, cz: Float, dx: Float, dy: Float, dz: Float) {
-            vertex(ax, ay, az, color)
-            vertex(bx, by, bz, color)
-            vertex(cx, cy, cz, color)
-            vertex(dx, dy, dz, color)
-        }
-
-        if (faceMask.hasFace(Direction.WEST)) quad(x1, y1, z1, x1, y1, z2, x1, y2, z2, x1, y2, z1)
-        if (faceMask.hasFace(Direction.EAST)) quad(x2, y1, z1, x2, y2, z1, x2, y2, z2, x2, y1, z2)
-        if (faceMask.hasFace(Direction.DOWN)) quad(x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2)
-        if (faceMask.hasFace(Direction.UP)) quad(x1, y2, z1, x1, y2, z2, x2, y2, z2, x2, y2, z1)
-        if (faceMask.hasFace(Direction.NORTH)) quad(x1, y1, z1, x1, y2, z1, x2, y2, z1, x2, y1, z1)
-        if (faceMask.hasFace(Direction.SOUTH)) quad(x1, y1, z2, x2, y1, z2, x2, y2, z2, x1, y2, z2)
-    }
-
-    private fun lineBox(pos: BlockPos, camera: Vec3, faceMask: Int = ALL_FACES_MASK, line: (Float, Float, Float, Float, Float, Float) -> Unit) {
-        val x1 = (pos.x - camera.x).toFloat()
-        val y1 = (pos.y - camera.y).toFloat()
-        val z1 = (pos.z - camera.z).toFloat()
-        val x2 = x1 + 1f
-        val y2 = y1 + 1f
-        val z2 = z1 + 1f
-
-        fun exposed(a: Direction, b: Direction): Boolean = faceMask.hasFace(a) || faceMask.hasFace(b)
-
-        if (exposed(Direction.DOWN, Direction.NORTH)) line(x1, y1, z1, x2, y1, z1)
-        if (exposed(Direction.DOWN, Direction.SOUTH)) line(x1, y1, z2, x2, y1, z2)
-        if (exposed(Direction.DOWN, Direction.WEST)) line(x1, y1, z1, x1, y1, z2)
-        if (exposed(Direction.DOWN, Direction.EAST)) line(x2, y1, z1, x2, y1, z2)
-
-        if (exposed(Direction.UP, Direction.NORTH)) line(x1, y2, z1, x2, y2, z1)
-        if (exposed(Direction.UP, Direction.SOUTH)) line(x1, y2, z2, x2, y2, z2)
-        if (exposed(Direction.UP, Direction.WEST)) line(x1, y2, z1, x1, y2, z2)
-        if (exposed(Direction.UP, Direction.EAST)) line(x2, y2, z1, x2, y2, z2)
-
-        if (exposed(Direction.NORTH, Direction.WEST)) line(x1, y1, z1, x1, y2, z1)
-        if (exposed(Direction.NORTH, Direction.EAST)) line(x2, y1, z1, x2, y2, z1)
-        if (exposed(Direction.SOUTH, Direction.WEST)) line(x1, y1, z2, x1, y2, z2)
-        if (exposed(Direction.SOUTH, Direction.EAST)) line(x2, y1, z2, x2, y2, z2)
-    }
-
-    private fun outlineVertexCount(faceMask: Int): Int {
-        fun exposed(a: Direction, b: Direction): Boolean = faceMask.hasFace(a) || faceMask.hasFace(b)
-        var lines = 0
-        if (exposed(Direction.DOWN, Direction.NORTH)) lines++
-        if (exposed(Direction.DOWN, Direction.SOUTH)) lines++
-        if (exposed(Direction.DOWN, Direction.WEST)) lines++
-        if (exposed(Direction.DOWN, Direction.EAST)) lines++
-        if (exposed(Direction.UP, Direction.NORTH)) lines++
-        if (exposed(Direction.UP, Direction.SOUTH)) lines++
-        if (exposed(Direction.UP, Direction.WEST)) lines++
-        if (exposed(Direction.UP, Direction.EAST)) lines++
-        if (exposed(Direction.NORTH, Direction.WEST)) lines++
-        if (exposed(Direction.NORTH, Direction.EAST)) lines++
-        if (exposed(Direction.SOUTH, Direction.WEST)) lines++
-        if (exposed(Direction.SOUTH, Direction.EAST)) lines++
-        return lines * 2
-    }
-
-    private fun lineNormal(x1: Float, y1: Float, z1: Float, x2: Float, y2: Float, z2: Float): Vector3f {
-        val normal = Vector3f(x2 - x1, y2 - y1, z2 - z1)
-        return if (normal.lengthSquared() > 0f) normal.normalize() else Vector3f(0f, 1f, 0f)
-    }
-
-    data class Projection(
-        val name: String,
-        val blocks: List<ProjectedBlock>,
-        val bounds: Bounds,
-        val author: String = UNKNOWN_AUTHOR
-    )
-
-    data class ProjectedBlock(
-        val relativePos: BlockPos,
-        val state: BlockState
-    )
-
-    data class Transform(
-        val origin: BlockPos,
-        val offsetX: Int = 0,
-        val offsetY: Int = 0,
-        val offsetZ: Int = 0,
-        val rotation: Rotation = Rotation.NONE
-    ) {
-        fun apply(relative: BlockPos): BlockPos {
-            val rotated = when (rotation) {
-                Rotation.NONE -> relative
-                Rotation.R_90 -> BlockPos(-relative.z, relative.y, relative.x)
-                Rotation.R_180 -> BlockPos(-relative.x, relative.y, -relative.z)
-                Rotation.R_270 -> BlockPos(relative.z, relative.y, -relative.x)
-            }
-            return origin.offset(rotated.x + offsetX, rotated.y + offsetY, rotated.z + offsetZ)
-        }
-
-        fun apply(state: BlockState): BlockState {
-            return when (rotation) {
-                Rotation.NONE -> state
-                Rotation.R_90 -> state.rotate(BlockRotation.CLOCKWISE_90)
-                Rotation.R_180 -> state.rotate(BlockRotation.CLOCKWISE_180)
-                Rotation.R_270 -> state.rotate(BlockRotation.COUNTERCLOCKWISE_90)
-            }
-        }
-    }
-
-    data class RenderOptions(
-        val texture: Boolean = true,
-        val fill: Boolean = true,
-        val outline: Boolean = true,
-        val renderBuilt: Boolean = true,
-        val onlyTopFace: Boolean = false,
-        val statusChecksPerFrame: Int = 2048,
-        val missingColor: ANColor = ANColor.rgba(70, 170, 255, 120),
-        val wrongColor: ANColor = ANColor.rgba(255, 80, 80, 140),
-        val builtColor: ANColor = ANColor.rgba(80, 255, 120, 85)
-    )
-
-    enum class Rotation {
-        NONE,
-        R_90,
-        R_180,
-        R_270
-    }
-
-    class RenderCache private constructor(
-        val projectionName: String,
-        val transform: Transform,
-        val sections: List<RenderSection>,
-        val blockCount: Int
-    ) {
-        private var statusSectionCursor = 0
-        private val sectionIndex = sections.associateBy { it.key }
-
-        val isEmpty: Boolean
-            get() = blockCount == 0 || sections.isEmpty()
-
-        fun refreshStatuses(level: ClientLevel, visibleSections: List<RenderSection>, budget: Int) {
-            if (budget <= 0 || visibleSections.isEmpty()) return
-            var remaining = budget
-            var sectionOffset = 0
-            while (remaining > 0 && sectionOffset < visibleSections.size) {
-                val section = visibleSections[(statusSectionCursor + sectionOffset) % visibleSections.size]
-                remaining -= section.refreshStatuses(level, remaining)
-                sectionOffset++
-            }
-            statusSectionCursor = (statusSectionCursor + sectionOffset).floorMod(visibleSections.size)
-        }
-
-        fun markDirty(pos: BlockPos) {
-            sectionIndex[SectionKey.of(pos)]?.markDirty(pos)
-        }
-
-        fun updateStatus(pos: BlockPos, actual: BlockState) {
-            sectionIndex[SectionKey.of(pos)]?.updateStatus(pos, actual)
-        }
-
-        companion object {
-            val EMPTY = RenderCache("", Transform(BlockPos.ZERO), emptyList(), 0)
-
-            fun build(projection: Projection, transform: Transform): RenderCache {
-                val builder = Builder(projection, transform)
-                builder.step(Int.MAX_VALUE)
-                return builder.snapshot()
-            }
-
-            private fun fromBuckets(
-                projectionName: String,
-                transform: Transform,
-                buckets: LinkedHashMap<SectionKey, MutableList<RenderBlock>>,
-                blockCount: Int
-            ): RenderCache {
-                if (blockCount <= 0 || buckets.isEmpty()) return EMPTY
-                val sections = buckets.mapNotNull { (key, blocks) ->
-                    val renderable = blocks.filterNot { it.interior }
-                    if (renderable.isEmpty()) null else RenderSection.create(key, renderable)
-                }
-                    .sortedWith(compareBy({ it.key.x }, { it.key.y }, { it.key.z }))
-                return RenderCache(projectionName, transform, sections, blockCount)
-            }
-        }
-
-        class Builder(
-            private val projection: Projection,
-            val transform: Transform
-        ) {
-            private val buckets = LinkedHashMap<SectionKey, MutableList<RenderBlock>>()
-            private val positions = LongOpenHashSet(projection.blocks.size)
-            private val renderBlocks = ArrayList<RenderBlock>(projection.blocks.size)
-            private var cursor = 0
-            private var cullCursor = 0
-            private var phase = if (projection.blocks.isEmpty()) BuildPhase.DONE else BuildPhase.TRANSFORM
-
-            val projectionName: String
-                get() = projection.name
-
-            val totalBlocks: Int
-                get() = projection.blocks.size
-
-            val processedBlocks: Int
-                get() = cursor
-
-            val isDone: Boolean
-                get() = phase == BuildPhase.DONE
-
-            fun matches(projection: Projection, transform: Transform): Boolean {
-                return projectionName == projection.name && totalBlocks == projection.blocks.size && this.transform == transform
-            }
-
-            fun step(budget: Int): Boolean {
-                if (budget <= 0 || isDone) return isDone
-                var remaining = budget
-                while (remaining > 0 && !isDone) {
-                    remaining = when (phase) {
-                        BuildPhase.TRANSFORM -> stepTransform(remaining)
-                        BuildPhase.CULL_INTERIORS -> stepCullInteriors(remaining)
-                        BuildPhase.DONE -> 0
-                    }
-                }
-                return isDone
-            }
-
-            fun snapshot(): RenderCache {
-                return fromBuckets(projection.name, transform, buckets, cursor)
-            }
-
-            private fun stepTransform(budget: Int): Int {
-                val start = cursor
-                val end = (cursor + budget).coerceAtMost(projection.blocks.size)
-                while (cursor < end) {
-                    val projected = projection.blocks[cursor++]
-                    val worldPos = transform.apply(projected.relativePos)
-                    val block = RenderBlock(worldPos, transform.apply(projected.state))
-                    positions.add(worldPos.asLong())
-                    renderBlocks += block
-                    buckets.getOrPut(SectionKey.of(worldPos)) { ArrayList() } += block
-                }
-                if (cursor >= projection.blocks.size) {
-                    phase = BuildPhase.CULL_INTERIORS
-                }
-                return budget - (end - start)
-            }
-
-            private fun stepCullInteriors(budget: Int): Int {
-                val start = cullCursor
-                val end = (cullCursor + budget).coerceAtMost(renderBlocks.size)
-                while (cullCursor < end) {
-                    val block = renderBlocks[cullCursor++]
-                    block.updateExposedFaces(positions)
-                }
-                if (cullCursor >= renderBlocks.size) {
-                    phase = BuildPhase.DONE
-                }
-                return budget - (end - start)
-            }
-        }
-    }
-
-    data class RenderSection(
-        val key: SectionKey,
-        val blocks: List<RenderBlock>,
-        val bounds: AABB
-    ) {
-        private var verifyCursor = 0
-        private val blockIndex = blocks.associateBy { it.pos.asLong() }
-        var revision: Int = 0
-            private set
-
-        fun refreshStatuses(level: ClientLevel, budget: Int): Int {
-            if (budget <= 0 || blocks.isEmpty()) return 0
-            var used = 0
-            while (used < budget && used < blocks.size) {
-                val block = blocks[(verifyCursor + used) % blocks.size]
-                if (!block.interior) {
-                    if (block.refreshStatus(level.getBlockState(block.pos))) {
-                        revision++
-                    }
-                }
-                used++
-            }
-            verifyCursor = (verifyCursor + used).floorMod(blocks.size)
-            return used
-        }
-
-        fun markDirty(pos: BlockPos) {
-            blockIndex[pos.asLong()]?.let { block ->
-                if (block.status != BlockStatus.UNKNOWN) {
-                    block.status = BlockStatus.UNKNOWN
-                    revision++
-                }
-            }
-        }
-
-        fun updateStatus(pos: BlockPos, actual: BlockState) {
-            blockIndex[pos.asLong()]?.let { block ->
-                if (block.refreshStatus(actual)) {
-                    revision++
-                }
-            }
-        }
-
-        companion object {
-            fun create(key: SectionKey, blocks: List<RenderBlock>): RenderSection {
-                var minX = Int.MAX_VALUE
-                var minY = Int.MAX_VALUE
-                var minZ = Int.MAX_VALUE
-                var maxX = Int.MIN_VALUE
-                var maxY = Int.MIN_VALUE
-                var maxZ = Int.MIN_VALUE
-                for (block in blocks) {
-                    val pos = block.pos
-                    minX = minOf(minX, pos.x)
-                    minY = minOf(minY, pos.y)
-                    minZ = minOf(minZ, pos.z)
-                    maxX = maxOf(maxX, pos.x)
-                    maxY = maxOf(maxY, pos.y)
-                    maxZ = maxOf(maxZ, pos.z)
-                }
-                return RenderSection(key, blocks, AABB(minX.toDouble(), minY.toDouble(), minZ.toDouble(), maxX + 1.0, maxY + 1.0, maxZ + 1.0))
-            }
-        }
-    }
-
-    data class SectionKey(
-        val x: Int,
-        val y: Int,
-        val z: Int
-    ) {
-        companion object {
-            fun of(pos: BlockPos): SectionKey = SectionKey(pos.x shr 4, pos.y shr 4, pos.z shr 4)
-        }
-    }
-
-    data class Bounds(
-        val minX: Int,
-        val minY: Int,
-        val minZ: Int,
-        val maxX: Int,
-        val maxY: Int,
-        val maxZ: Int
-    ) {
-        companion object {
-            val EMPTY = Bounds(0, 0, 0, 0, 0, 0)
-
-            fun of(blocks: List<ProjectedBlock>): Bounds {
-                if (blocks.isEmpty()) return EMPTY
-                var minX = Int.MAX_VALUE
-                var minY = Int.MAX_VALUE
-                var minZ = Int.MAX_VALUE
-                var maxX = Int.MIN_VALUE
-                var maxY = Int.MIN_VALUE
-                var maxZ = Int.MIN_VALUE
-                for (block in blocks) {
-                    val pos = block.relativePos
-                    minX = minOf(minX, pos.x)
-                    minY = minOf(minY, pos.y)
-                    minZ = minOf(minZ, pos.z)
-                    maxX = maxOf(maxX, pos.x)
-                    maxY = maxOf(maxY, pos.y)
-                    maxZ = maxOf(maxZ, pos.z)
-                }
-                return Bounds(minX, minY, minZ, maxX, maxY, maxZ)
-            }
-        }
-    }
-
-    data class RenderBlock(
-        val pos: BlockPos,
-        val state: BlockState
-    ) {
-        var status: BlockStatus = BlockStatus.UNKNOWN
-        var interior: Boolean = false
-        var exposedFaceMask: Int = ALL_FACES_MASK
-
-        fun refreshStatus(actual: BlockState?): Boolean {
-            val isSlabMismatch = actual != null && actual.block == state.block &&
-                    state.properties.any { it.name == "type" && state.getValue(it).toString() == "double" } &&
-                    actual.properties.any { it.name == "type" && actual.getValue(it).toString() != "double" }
-
-            val next = when {
-                actual == null || actual.isAir -> BlockStatus.MISSING
-                isSlabMismatch -> BlockStatus.MISSING
-                actual.block == state.block -> BlockStatus.BUILT
-                else -> BlockStatus.WRONG
-            }
-            if (status == next) return false
-            status = next
-            return true
-        }
-
-        fun shouldRender(renderBuilt: Boolean): Boolean = !interior && (renderBuilt || status != BlockStatus.BUILT)
-
-        fun updateExposedFaces(positions: LongOpenHashSet) {
-            if (state.renderShape != RenderShape.MODEL || !state.canOcclude() || !state.isSolidRender) {
-                exposedFaceMask = ALL_FACES_MASK
-                interior = false
-                return
-            }
-
-            val packed = pos.asLong()
-            var mask = 0
-            for (direction in Direction.entries) {
-                if (!positions.contains(BlockPos.offset(packed, direction))) {
-                    mask = mask or direction.faceBit()
-                }
-            }
-            exposedFaceMask = mask
-            interior = mask == 0
-        }
-    }
-
-    enum class BlockStatus {
-        UNKNOWN,
-        MISSING,
-        WRONG,
-        BUILT
     }
 
     private enum class GeometryKind {
@@ -770,62 +158,469 @@ object LitematicLoader {
         OUTLINE
     }
 
-    private enum class BuildPhase {
-        TRANSFORM,
-        CULL_INTERIORS,
-        DONE
+    private fun renderFilledBox(
+        consumer: com.mojang.blaze3d.vertex.VertexConsumer,
+        poseStack: PoseStack,
+        pos: BlockPos,
+        camera: Vec3,
+        r: Float,
+        g: Float,
+        b: Float,
+        a: Float
+    ) {
+        val minX = (pos.x - camera.x).toFloat()
+        val minY = (pos.y - camera.y).toFloat()
+        val minZ = (pos.z - camera.z).toFloat()
+        val maxX = minX + 1.0f
+        val maxY = minY + 1.0f
+        val maxZ = minZ + 1.0f
+
+        val pose = poseStack.last().pose()
+
+        // Down
+        consumer.vertex(pose, minX, minY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, minY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, minY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, minY, maxZ).color(r, g, b, a).endVertex()
+
+        // Up
+        consumer.vertex(pose, minX, maxY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, maxY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, maxY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, maxY, minZ).color(r, g, b, a).endVertex()
+
+        // North
+        consumer.vertex(pose, minX, minY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, maxY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, maxY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, minY, minZ).color(r, g, b, a).endVertex()
+
+        // South
+        consumer.vertex(pose, maxX, minY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, maxY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, maxY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, minY, maxZ).color(r, g, b, a).endVertex()
+
+        // West
+        consumer.vertex(pose, minX, minY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, maxY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, maxY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, minX, minY, minZ).color(r, g, b, a).endVertex()
+
+        // East
+        consumer.vertex(pose, maxX, minY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, maxY, minZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, maxY, maxZ).color(r, g, b, a).endVertex()
+        consumer.vertex(pose, maxX, minY, maxZ).color(r, g, b, a).endVertex()
     }
 
-    private fun Int.floorMod(mod: Int): Int = if (mod == 0) 0 else Math.floorMod(this, mod)
+    private fun renderBoxOutline(
+        consumer: com.mojang.blaze3d.vertex.VertexConsumer,
+        poseStack: PoseStack,
+        pos: BlockPos,
+        camera: Vec3,
+        r: Float,
+        g: Float,
+        b: Float,
+        a: Float
+    ) {
+        val minX = (pos.x - camera.x).toFloat()
+        val minY = (pos.y - camera.y).toFloat()
+        val minZ = (pos.z - camera.z).toFloat()
+        val maxX = minX + 1.0f
+        val maxY = minY + 1.0f
+        val maxZ = minZ + 1.0f
 
-    private fun Direction.faceBit(): Int = 1 shl ordinal
+        val pose = poseStack.last().pose()
+        val normal = poseStack.last().normal()
 
-    private fun Int.hasFace(direction: Direction): Boolean = (this and direction.faceBit()) != 0
+        fun line(x1: Float, y1: Float, z1: Float, x2: Float, y2: Float, z2: Float, nx: Float, ny: Float, nz: Float) {
+            consumer.vertex(pose, x1, y1, z1).color(r, g, b, a).normal(normal, nx, ny, nz).endVertex()
+            consumer.vertex(pose, x2, y2, z2).color(r, g, b, a).normal(normal, nx, ny, nz).endVertex()
+        }
 
-    fun isCropOrPlant(block: Block): Boolean {
-        val path = BuiltInRegistries.BLOCK.getKey(block).path.lowercase()
-        return path == "wheat"
-                || path == "carrots"
-                || path == "potatoes"
-                || path == "beetroots"
-                || path == "sweet_berry_bush"
-                || path == "cocoa"
-                || path == "cactus"
-                || path == "sugar_cane"
-                || path == "nether_wart"
-                || path == "seagrass"
-                || path == "tall_seagrass"
-                || path == "sea_pickle"
-                || path == "kelp"
-                || path == "kelp_plant"
-                || path == "bamboo"
-                || path == "bamboo_sapling"
-                || path == "dead_bush"
-                || path.contains("stem")
-                || path.contains("sapling")
-                || path.contains("flower")
-                || path.contains("grass")
-                || path.contains("fern")
-                || path.contains("mushroom")
-                || path.contains("vines")
-                || path.contains("crop")
-                || path.contains("tulip")
-                || path == "dandelion"
-                || path == "poppy"
-                || path == "blue_orchid"
-                || path == "allium"
-                || path == "azure_bluet"
-                || path == "oxeye_daisy"
-                || path == "cornflower"
-                || path == "lily_of_the_valley"
-                || path == "wither_rose"
-                || path == "lilac"
-                || path == "rose_bush"
-                || path == "peony"
-                || path == "sunflower"
+        line(minX, minY, minZ, maxX, minY, minZ, 0f, -1f, 0f)
+        line(maxX, minY, minZ, maxX, minY, maxZ, 1f, 0f, 0f)
+        line(maxX, minY, maxZ, minX, minY, maxZ, 0f, 0f, 1f)
+        line(minX, minY, maxZ, minX, minY, minZ, -1f, 0f, 0f)
+
+        line(minX, maxY, minZ, maxX, maxY, minZ, 0f, 1f, 0f)
+        line(maxX, maxY, minZ, maxX, maxY, maxZ, 1f, 0f, 0f)
+        line(maxX, maxY, maxZ, minX, maxY, maxZ, 0f, 0f, 1f)
+        line(minX, maxY, maxZ, minX, maxY, minZ, -1f, 0f, 0f)
+
+        line(minX, minY, minZ, minX, maxY, minZ, -1f, 0f, 0f)
+        line(maxX, minY, minZ, maxX, maxY, minZ, 1f, 0f, 0f)
+        line(maxX, minY, maxZ, maxX, maxY, maxZ, 1f, 0f, 0f)
+        line(minX, minY, maxZ, minX, maxY, maxZ, -1f, 0f, 0f)
     }
 
-    private const val UNKNOWN_AUTHOR = "Unknown"
-    private const val MAX_CUSTOM_GEOMETRY_VERTICES = 12_000_000L
-    private val ALL_FACES_MASK = Direction.entries.fold(0) { mask, direction -> mask or direction.faceBit() }
+    private fun loadLitematic(file: File): Projection {
+        val root = NbtIo.readCompressed(file)
+        val name = file.nameWithoutExtension
+        val regionsTag = root.getCompound("Regions")
+        val blocks = ArrayList<StateBlock>()
+
+        for (regionName in regionsTag.allKeys) {
+            val region = regionsTag.getCompound(regionName)
+            val size = region.getCompound("Size")
+            val sizeX = size.getInt("x")
+            val sizeY = size.getInt("y")
+            val sizeZ = size.getInt("z")
+            val absSizeX = abs(sizeX)
+            val absSizeY = abs(sizeY)
+            val absSizeZ = abs(sizeZ)
+
+            val pos = region.getCompound("Position")
+            val regPosX = pos.getInt("x")
+            val regPosY = pos.getInt("y")
+            val regPosZ = pos.getInt("z")
+
+            val paletteTag = region.getList("BlockStatePalette", 10)
+            val palette = Array(paletteTag.size) { index ->
+                parseBlockState(paletteTag.getCompound(index))
+            }
+
+            val blockStates = region.getLongArray("BlockStates")
+            val totalVolume = absSizeX * absSizeY * absSizeZ
+            val bitsPerEntry = calculateBitsPerEntry(palette.size)
+
+            for (i in 0 until totalVolume) {
+                val paletteIndex = readPackedVal(blockStates, bitsPerEntry, i)
+                if (paletteIndex < 0 || paletteIndex >= palette.size) continue
+
+                val state = palette[paletteIndex]
+                if (state.isAir) continue
+
+                val lx = i % absSizeX
+                val ly = (i / absSizeX) % absSizeY
+                val lz = (i / (absSizeX * absSizeY)) % absSizeZ
+
+                val relX = if (sizeX < 0) -lx else lx
+                val relY = if (sizeY < 0) -ly else ly
+                val relZ = if (sizeZ < 0) -lz else lz
+
+                val finalPos = BlockPos(regPosX + relX, regPosY + relY, regPosZ + relZ)
+                blocks.add(StateBlock(finalPos, state))
+            }
+        }
+
+        val bounds = Bounds.from(blocks.map { it.pos })
+        return Projection(name, blocks, bounds)
+    }
+
+    private fun loadTextProjection(file: File): Projection {
+        val blocks = ArrayList<StateBlock>()
+        file.useLines { lines ->
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+                val parts = trimmed.split(";", limit = 4)
+                if (parts.size < 4) continue
+                val x = parts[0].toIntOrNull() ?: continue
+                val y = parts[1].toIntOrNull() ?: continue
+                val z = parts[2].toIntOrNull() ?: continue
+                val state = parseBlockStateString(parts[3]) ?: continue
+                if (state.isAir) continue
+                blocks.add(StateBlock(BlockPos(x, y, z), state))
+            }
+        }
+        val bounds = Bounds.from(blocks.map { it.pos })
+        return Projection(file.nameWithoutExtension, blocks, bounds)
+    }
+
+    private fun parseBlockState(tag: CompoundTag): BlockState {
+        val name = tag.getString("Name")
+        val block = BuiltInRegistries.BLOCK.get(Identifier(name))
+        var state = block.defaultBlockState()
+
+        if (tag.contains("Properties")) {
+            val props = tag.getCompound("Properties")
+            for (key in props.allKeys) {
+                val property = block.stateDefinition.getProperty(key) ?: continue
+                val valueString = props.getString(key)
+                state = setPropertyString(state, property, valueString)
+            }
+        }
+        return state
+    }
+
+    private fun <T : Comparable<T>> setPropertyString(
+        state: BlockState,
+        property: net.minecraft.world.level.block.state.properties.Property<T>,
+        valueString: String
+    ): BlockState {
+        val optionalValue = property.getValue(valueString)
+        return if (optionalValue.isPresent) {
+            state.setValue(property, optionalValue.get())
+        } else {
+            state
+        }
+    }
+
+    private fun parseBlockStateString(blockStateStr: String): BlockState? {
+        return runCatching {
+            val result = BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK.asLookup(), blockStateStr, true)
+            result.blockState()
+        }.getOrNull()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Comparable<T>> setValueUnchecked(
+        state: BlockState,
+        property: net.minecraft.world.level.block.state.properties.Property<*>,
+        value: Any
+    ): BlockState {
+        return state.setValue(property as net.minecraft.world.level.block.state.properties.Property<T>, value as T)
+    }
+
+    private fun calculateBitsPerEntry(paletteSize: Int): Int {
+        var bits = 2
+        while ((1 shl bits) < paletteSize) {
+            bits++
+        }
+        return bits.coerceAtLeast(2)
+    }
+
+    private fun readPackedVal(longArray: LongArray, bitsPerEntry: Int, index: Int): Int {
+        if (longArray.isEmpty()) return 0
+        val bitIndex = index.toLong() * bitsPerEntry
+        val startLong = (bitIndex / 64).toInt()
+        val endLong = ((bitIndex + bitsPerEntry - 1) / 64).toInt()
+        val startBit = (bitIndex % 64).toInt()
+
+        if (startLong >= longArray.size) return 0
+
+        return if (startLong == endLong) {
+            ((longArray[startLong] ushr startBit) and ((1L shl bitsPerEntry) - 1)).toInt()
+        } else {
+            val bitsFromFirst = 64 - startBit
+            val firstPart = (longArray[startLong] ushr startBit) and ((1L shl bitsFromFirst) - 1)
+            val secondPart = if (endLong < longArray.size) {
+                longArray[endLong] and ((1L shl (bitsPerEntry - bitsFromFirst)) - 1)
+            } else 0L
+            (firstPart or (secondPart shl bitsFromFirst)).toInt()
+        }
+    }
+
+    data class StateBlock(val pos: BlockPos, val state: BlockState)
+
+    data class Transform(
+        val origin: BlockPos = BlockPos.ZERO,
+        val rotation: BlockRotation = BlockRotation.NONE,
+        val mirror: Boolean = false
+    ) {
+        fun apply(pos: BlockPos): BlockPos {
+            var x = pos.x
+            val y = pos.y
+            var z = pos.z
+
+            if (mirror) {
+                x = -x
+            }
+
+            when (rotation) {
+                BlockRotation.CLOCKWISE_90 -> {
+                    val tx = x
+                    x = -z
+                    z = tx
+                }
+                BlockRotation.CLOCKWISE_180 -> {
+                    x = -x
+                    z = -z
+                }
+                BlockRotation.COUNTERCLOCKWISE_90 -> {
+                    val tx = x
+                    x = z
+                    z = -tx
+                }
+                BlockRotation.NONE -> {}
+            }
+
+            return origin.offset(x, y, z)
+        }
+
+        fun applyState(state: BlockState): BlockState {
+            var s = state
+            if (mirror) {
+                s = s.mirror(net.minecraft.world.level.block.Mirror.LEFT_RIGHT)
+            }
+            if (rotation != BlockRotation.NONE) {
+                s = s.rotate(rotation)
+            }
+            return getProxyState(s)
+        }
+
+        companion object {
+            val IDENTITY = Transform()
+        }
+    }
+
+    data class Bounds(
+        val min: BlockPos,
+        val max: BlockPos
+    ) {
+        val isEmpty: Boolean get() = this == EMPTY
+
+        val width: Int get() = if (isEmpty) 0 else max.x - min.x + 1
+        val height: Int get() = if (isEmpty) 0 else max.y - min.y + 1
+        val length: Int get() = if (isEmpty) 0 else max.z - min.z + 1
+
+        fun contains(pos: BlockPos): Boolean =
+            !isEmpty && pos.x in min.x..max.x && pos.y in min.y..max.y && pos.z in min.z..max.z
+
+        companion object {
+            val EMPTY = Bounds(BlockPos.ZERO, BlockPos.ZERO)
+
+            fun from(positions: Collection<BlockPos>): Bounds {
+                if (positions.isEmpty()) return EMPTY
+                var minX = Int.MAX_VALUE
+                var minY = Int.MAX_VALUE
+                var minZ = Int.MAX_VALUE
+                var maxX = Int.MIN_VALUE
+                var maxY = Int.MIN_VALUE
+                var maxZ = Int.MIN_VALUE
+
+                for (pos in positions) {
+                    if (pos.x < minX) minX = pos.x
+                    if (pos.y < minY) minY = pos.y
+                    if (pos.z < minZ) minZ = pos.z
+                    if (pos.x > maxX) maxX = pos.x
+                    if (pos.y > maxY) maxY = pos.y
+                    if (pos.z > maxZ) maxZ = pos.z
+                }
+
+                return Bounds(BlockPos(minX, minY, minZ), BlockPos(maxX, maxY, maxZ))
+            }
+        }
+    }
+
+    data class Projection(
+        val name: String,
+        val blocks: List<StateBlock>,
+        val bounds: Bounds
+    )
+
+    enum class BlockStatus {
+        CORRECT,
+        WRONG,
+        MISSING
+    }
+
+    data class RenderBlock(
+        val pos: BlockPos,
+        val state: BlockState,
+        var status: BlockStatus
+    ) {
+        fun shouldRender(renderBuilt: Boolean): Boolean =
+            renderBuilt || status != BlockStatus.CORRECT
+    }
+
+    data class RenderSection(
+        val sectionPos: BlockPos,
+        val bounds: AABB,
+        val blocks: List<RenderBlock>
+    ) {
+        private var correctCount = 0
+
+        fun updateCounts() {
+            correctCount = blocks.count { it.status == BlockStatus.CORRECT }
+        }
+
+        fun isFullyCorrect(): Boolean = correctCount == blocks.size
+    }
+
+    class RenderCache private constructor(
+        val transform: Transform,
+        val sections: List<RenderSection>,
+        val bounds: Bounds,
+        val totalBlocks: Int
+    ) {
+        val isEmpty: Boolean get() = sections.isEmpty()
+
+        fun refreshStatuses(level: net.minecraft.world.level.Level, sectionsToUpdate: List<RenderSection>, checksPerFrame: Int) {
+            var checks = 0
+            for (section in sectionsToUpdate) {
+                for (block in section.blocks) {
+                    if (checks >= checksPerFrame) {
+                        section.updateCounts()
+                        return
+                    }
+                    val worldState = level.getBlockState(block.pos)
+                    val expectedState = block.state
+                    block.status = when {
+                        worldState == expectedState -> BlockStatus.CORRECT
+                        worldState.isAir -> BlockStatus.MISSING
+                        else -> BlockStatus.WRONG
+                    }
+                    checks++
+                }
+                section.updateCounts()
+            }
+        }
+
+        companion object {
+            fun build(projection: Projection, transform: Transform): RenderCache {
+                if (projection.blocks.isEmpty()) {
+                    return RenderCache(transform, emptyList(), Bounds.EMPTY, 0)
+                }
+
+                val sectionMap = HashMap<Long, MutableList<RenderBlock>>()
+                val transformedPositions = ArrayList<BlockPos>(projection.blocks.size)
+
+                for (block in projection.blocks) {
+                    val finalPos = transform.apply(block.pos)
+                    val finalState = transform.applyState(block.state)
+                    transformedPositions.add(finalPos)
+
+                    val secX = finalPos.x shr 4
+                    val secY = finalPos.y shr 4
+                    val secZ = finalPos.z shr 4
+                    val secKey = (secX.toLong() and 0x3FFFFFL) or
+                            ((secZ.toLong() and 0x3FFFFFL) shl 22) or
+                            ((secY.toLong() and 0xFFFFFL) shl 44)
+
+                    val renderBlock = RenderBlock(finalPos, finalState, BlockStatus.MISSING)
+                    sectionMap.getOrPut(secKey) { ArrayList() }.add(renderBlock)
+                }
+
+                val renderSections = ArrayList<RenderSection>()
+                for ((secKey, blocks) in sectionMap) {
+                    val secX = (secKey and 0x3FFFFFL).toInt().let { if (it >= 0x200000) it - 0x400000 else it }
+                    val secZ = ((secKey ushr 22) and 0x3FFFFFL).toInt().let { if (it >= 0x200000) it - 0x400000 else it }
+                    val secY = ((secKey ushr 44) and 0xFFFFFL).toInt().let { if (it >= 0x80000) it - 0x100000 else it }
+
+                    val minX = (secX shl 4).toDouble()
+                    val minY = (secY shl 4).toDouble()
+                    val minZ = (secZ shl 4).toDouble()
+                    val aabb = AABB(minX, minY, minZ, minX + 16.0, minY + 16.0, minZ + 16.0)
+
+                    renderSections.add(RenderSection(BlockPos(secX shl 4, secY shl 4, secZ shl 4), aabb, blocks))
+                }
+
+                val bounds = Bounds.from(transformedPositions)
+                return RenderCache(transform, renderSections, bounds, projection.blocks.size)
+            }
+        }
+    }
+
+    data class RenderOptions(
+        val fill: Boolean = true,
+        val fillAlpha: Float = 0.25f,
+        val outline: Boolean = true,
+        val outlineAlpha: Float = 0.85f,
+        val texture: Boolean = false,
+        val renderBuilt: Boolean = false,
+        val statusChecksPerFrame: Int = 256,
+        val customGeometryVertexBudget: Int = 120000,
+        val correctColor: ANColor = ANColor(0x33, 0xFF, 0x55, 0xFF),
+        val wrongColor: ANColor = ANColor(0xFF, 0x33, 0x33, 0xFF),
+        val missingColor: ANColor = ANColor(0x33, 0x88, 0xFF, 0xFF)
+    ) {
+        fun colorFor(status: BlockStatus): ANColor? = when (status) {
+            BlockStatus.CORRECT -> if (renderBuilt) correctColor else null
+            BlockStatus.WRONG -> wrongColor
+            BlockStatus.MISSING -> missingColor
+        }
+    }
 }

@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.state.properties.ChestType
 
 object BaseFinderScanner {
     fun scan(level: Level, chunkPos: ChunkPos): BaseFinderScanResult {
-        val chunk = level.getChunk(chunkPos.x(), chunkPos.z())
+        val chunk = level.getChunk(chunkPos.x, chunkPos.z)
         val result = BaseFinderScanResult(chunkPos)
         var doubleChestHalves = 0
 

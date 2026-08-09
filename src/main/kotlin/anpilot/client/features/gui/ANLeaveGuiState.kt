@@ -1,7 +1,7 @@
 package anpilot.client.features.gui
 
 import net.minecraft.client.Minecraft
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
@@ -42,7 +42,7 @@ object ANLeaveGuiState {
         health = localPlayer.health
         maxHealth = localPlayer.maxHealth.coerceAtLeast(1f)
         ping = minecraft.connection?.getPlayerInfo(localPlayer.uuid)?.latency ?: 0
-        dimension = level.dimension().identifier().toString()
+        dimension = level.dimension().location().toString()
         position = "${localPlayer.blockX}, ${localPlayer.blockY}, ${localPlayer.blockZ}"
         inventory = (0 until localPlayer.inventory.containerSize).map { slot ->
             localPlayer.inventory.getItem(slot).copy()
@@ -55,7 +55,7 @@ object ANLeaveGuiState {
             .map { other ->
                 NearbyPlayer(
                     name = other.name.string,
-                    skin = minecraft.connection?.getPlayerInfo(other.uuid)?.skin?.body()?.texturePath()
+                    skin = minecraft.connection?.getPlayerInfo(other.uuid)?.skinLocation
                 )
             }
             .toList()

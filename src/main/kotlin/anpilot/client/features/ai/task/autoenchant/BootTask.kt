@@ -34,7 +34,7 @@ class BootTask(agent: ANAgent) : AITask(agent) {
         }
 
         if (hasEnchantableWork(module)) {
-            agent.scheduler.push(AnvilTask(agent))
+            agent.scheduler.push(AnvilTask(agent, emptyList(), "Boot"))
         } else {
             agent.scheduler.push(StoreTask(agent))
         }

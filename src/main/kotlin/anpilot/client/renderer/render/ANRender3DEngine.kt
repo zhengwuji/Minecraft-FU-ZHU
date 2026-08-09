@@ -1,11 +1,11 @@
 package anpilot.client.renderer.render
 
 import anpilot.client.renderer.ANColor
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
-import net.minecraft.client.renderer.rendertype.RenderType
-import net.minecraft.client.renderer.rendertype.ANPilotRenderTypes
+import anpilot.client.compat.LevelRenderContext
+import net.minecraft.client.renderer.RenderType
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
+import org.joml.Matrix4f
 import org.joml.Vector3f
 
 object ANRender3DEngine {
@@ -13,18 +13,17 @@ object ANRender3DEngine {
         val start = toCameraSpace(context, from)
         val end = toCameraSpace(context, to)
         val normal = lineNormal(start, end)
-        val identityPose = context.poseStack().last().copy().apply { setIdentity() }
+        val pose = context.poseStack().last().pose()
 
-        context.submitNodeCollector().submitCustomGeometry(context.poseStack(), ANPilotRenderTypes.TRACER_LINES) { _, vertexConsumer ->
-            vertexConsumer.addVertex(identityPose, start.x.toFloat(), start.y.toFloat(), start.z.toFloat())
-                .setColor(color.red, color.green, color.blue, color.alpha)
-                .setNormal(identityPose, normal.x, normal.y, normal.z)
-                .setLineWidth(2f)
-            vertexConsumer.addVertex(identityPose, end.x.toFloat(), end.y.toFloat(), end.z.toFloat())
-                .setColor(color.red, color.green, color.blue, color.alpha)
-                .setNormal(identityPose, normal.x, normal.y, normal.z)
-                .setLineWidth(2f)
-        }
+        val consumer = context.bufferSource.getBuffer(RenderType.lines())
+        consumer.vertex(pose, start.x.toFloat(), start.y.toFloat(), start.z.toFloat())
+            .color(color.red, color.green, color.blue, color.alpha)
+            .normal(normal.x, normal.y, normal.z)
+            .endVertex()
+        consumer.vertex(pose, end.x.toFloat(), end.y.toFloat(), end.z.toFloat())
+            .color(color.red, color.green, color.blue, color.alpha)
+            .normal(normal.x, normal.y, normal.z)
+            .endVertex()
     }
 
     fun box(context: LevelRenderContext, box: AABB, lineColor: ANColor, fillColor: ANColor? = null, alwaysPass: Boolean = false) {
@@ -47,73 +46,61 @@ object ANRender3DEngine {
     }
 
     private fun submitBoxLines(context: LevelRenderContext, x1: Double, y1: Double, z1: Double, x2: Double, y2: Double, z2: Double, color: ANColor, alwaysPass: Boolean = false) {
-        val identityPose = context.poseStack().last().copy().apply { setIdentity() }
-        
-        fun drawPass(renderType: RenderType, alpha: Int, width: Float) {
-            context.submitNodeCollector().submitCustomGeometry(context.poseStack(), renderType) { _, vertexConsumer ->
-                fun vertex(x: Double, y: Double, z: Double, normal: Vector3f) {
-                    vertexConsumer.addVertex(identityPose, x.toFloat(), y.toFloat(), z.toFloat())
-                        .setColor(color.red, color.green, color.blue, alpha)
-                        .setNormal(identityPose, normal.x, normal.y, normal.z)
-                        .setLineWidth(width)
-                }
+        val pose = context.poseStack().last().pose()
+        val consumer = context.bufferSource.getBuffer(RenderType.lines())
 
-                fun line(x1: Double, y1: Double, z1: Double, x2: Double, y2: Double, z2: Double) {
-                    val normal = lineNormal(x1, y1, z1, x2, y2, z2)
-                    vertex(x1, y1, z1, normal)
-                    vertex(x2, y2, z2, normal)
-                }
-
-                line(x1, y1, z1, x2, y1, z1)
-                line(x2, y1, z1, x2, y1, z2)
-                line(x2, y1, z2, x1, y1, z2)
-                line(x1, y1, z2, x1, y1, z1)
-
-                line(x1, y2, z1, x2, y2, z1)
-                line(x2, y2, z1, x2, y2, z2)
-                line(x2, y2, z2, x1, y2, z2)
-                line(x1, y2, z2, x1, y2, z1)
-
-                line(x1, y1, z1, x1, y2, z1)
-                line(x2, y1, z1, x2, y2, z1)
-                line(x2, y1, z2, x2, y2, z2)
-                line(x1, y1, z2, x1, y2, z2)
-            }
+        fun vertex(x: Double, y: Double, z: Double, normal: Vector3f) {
+            consumer.vertex(pose, x.toFloat(), y.toFloat(), z.toFloat())
+                .color(color.red, color.green, color.blue, color.alpha)
+                .normal(normal.x, normal.y, normal.z)
+                .endVertex()
         }
 
-        if (alwaysPass) {
-            drawPass(ANPilotRenderTypes.XRAY_LINES, color.alpha, 2f)
-        } else {
-            
-            drawPass(ANPilotRenderTypes.XRAY_LINES_HIDDEN, (color.alpha * 0.3f).toInt(), 2f)
-
-            
-            drawPass(ANPilotRenderTypes.XRAY_LINES_VISIBLE, color.alpha, 2f)
+        fun line(x1: Double, y1: Double, z1: Double, x2: Double, y2: Double, z2: Double) {
+            val normal = lineNormal(x1, y1, z1, x2, y2, z2)
+            vertex(x1, y1, z1, normal)
+            vertex(x2, y2, z2, normal)
         }
+
+        line(x1, y1, z1, x2, y1, z1)
+        line(x2, y1, z1, x2, y1, z2)
+        line(x2, y1, z2, x1, y1, z2)
+        line(x1, y1, z2, x1, y1, z1)
+
+        line(x1, y2, z1, x2, y2, z1)
+        line(x2, y2, z1, x2, y2, z2)
+        line(x2, y2, z2, x1, y2, z2)
+        line(x1, y2, z2, x1, y2, z1)
+
+        line(x1, y1, z1, x1, y2, z1)
+        line(x2, y1, z1, x2, y2, z1)
+        line(x2, y1, z2, x2, y2, z2)
+        line(x1, y1, z2, x1, y2, z2)
     }
 
     private fun submitBoxFill(context: LevelRenderContext, x1: Double, y1: Double, z1: Double, x2: Double, y2: Double, z2: Double, color: ANColor) {
-        val identityPose = context.poseStack().last().copy().apply { setIdentity() }
-        context.submitNodeCollector().submitCustomGeometry(context.poseStack(), ANPilotRenderTypes.XRAY_FILLED_BOX) { _, vertexConsumer ->
-            fun vertex(x: Double, y: Double, z: Double) {
-                vertexConsumer.addVertex(identityPose, x.toFloat(), y.toFloat(), z.toFloat())
-                    .setColor(color.red, color.green, color.blue, color.alpha)
-            }
+        val pose = context.poseStack().last().pose()
+        val consumer = context.bufferSource.getBuffer(RenderType.lightning())
 
-            fun quad(ax: Double, ay: Double, az: Double, bx: Double, by: Double, bz: Double, cx: Double, cy: Double, cz: Double, dx: Double, dy: Double, dz: Double) {
-                vertex(ax, ay, az)
-                vertex(bx, by, bz)
-                vertex(cx, cy, cz)
-                vertex(dx, dy, dz)
-            }
-
-            quad(x1, y1, z1, x1, y1, z2, x1, y2, z2, x1, y2, z1)
-            quad(x2, y1, z1, x2, y2, z1, x2, y2, z2, x2, y1, z2)
-            quad(x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2)
-            quad(x1, y2, z1, x1, y2, z2, x2, y2, z2, x2, y2, z1)
-            quad(x1, y1, z1, x1, y2, z1, x2, y2, z1, x2, y1, z1)
-            quad(x1, y1, z2, x2, y1, z2, x2, y2, z2, x1, y2, z2)
+        fun vertex(x: Double, y: Double, z: Double) {
+            consumer.vertex(pose, x.toFloat(), y.toFloat(), z.toFloat())
+                .color(color.red, color.green, color.blue, color.alpha)
+                .endVertex()
         }
+
+        fun quad(ax: Double, ay: Double, az: Double, bx: Double, by: Double, bz: Double, cx: Double, cy: Double, cz: Double, dx: Double, dy: Double, dz: Double) {
+            vertex(ax, ay, az)
+            vertex(bx, by, bz)
+            vertex(cx, cy, cz)
+            vertex(dx, dy, dz)
+        }
+
+        quad(x1, y1, z1, x1, y1, z2, x1, y2, z2, x1, y2, z1)
+        quad(x2, y1, z1, x2, y2, z1, x2, y2, z2, x2, y1, z2)
+        quad(x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2)
+        quad(x1, y2, z1, x1, y2, z2, x2, y2, z2, x2, y2, z1)
+        quad(x1, y1, z1, x1, y2, z1, x2, y2, z1, x2, y1, z1)
+        quad(x1, y1, z2, x2, y1, z2, x2, y2, z2, x1, y2, z2)
     }
 
     private fun lineNormal(start: Vec3, end: Vec3): Vector3f = lineNormal(start.x, start.y, start.z, end.x, end.y, end.z)

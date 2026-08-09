@@ -107,28 +107,7 @@ public abstract class ANClientPlayerEntityMixin extends AbstractClientPlayer {
         }
     }
 
-    @Inject(method = "isSlowDueToUsingItem", at = @At("HEAD"), cancellable = true)
-    private void isSlowDueToUsingItemHook(CallbackInfoReturnable<Boolean> cir) {
-        if (!ANServiceRegistry.INSTANCE.isInitialized()) return;
-        Object module = ANServiceRegistry.INSTANCE.getRuntime().getModuleManager().get("NoSlow");
-        if (module instanceof anpilot.client.features.module.movement.ANNoSlow && ((anpilot.client.features.module.movement.ANNoSlow) module).getEnabled()) {
-            if (((anpilot.client.features.module.movement.ANNoSlow) module).shouldCancelSlowedDown()) {
-                cir.setReturnValue(false);
-            }
-        }
-    }
 
-    @Redirect(method = "modifyInput", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;isUsingItem()Z"))
-    private boolean modifyInputIsUsingItemRedirect(LocalPlayer player) {
-        if (!ANServiceRegistry.INSTANCE.isInitialized()) return player.isUsingItem();
-        Object module = ANServiceRegistry.INSTANCE.getRuntime().getModuleManager().get("NoSlow");
-        if (module instanceof anpilot.client.features.module.movement.ANNoSlow && ((anpilot.client.features.module.movement.ANNoSlow) module).getEnabled()) {
-            if (((anpilot.client.features.module.movement.ANNoSlow) module).shouldCancelSlowedDown()) {
-                return false;
-            }
-        }
-        return player.isUsingItem();
-    }
 
     @Inject(method = "isMovingSlowly", at = @At("HEAD"), cancellable = true)
     private void isMovingSlowlyHook(CallbackInfoReturnable<Boolean> cir) {

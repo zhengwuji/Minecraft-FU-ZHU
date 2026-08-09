@@ -11,7 +11,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -91,7 +91,7 @@ class ANScaffoldPlus : ANBaseModule(
         renderPositions.clear()
         renderPositions.addAll(plans.map { it.pos })
 
-        val swapped = if (slot == player.inventory.selectedSlot) true else Inventory.swap(slot, swapBack = true)
+        val swapped = if (slot == player.inventory.selected) true else Inventory.swap(slot, swapBack = true)
         if (!swapped) return
 
         try {
@@ -107,7 +107,7 @@ class ANScaffoldPlus : ANBaseModule(
             }
             placeCooldown = 1
         } finally {
-            if (slot != player.inventory.selectedSlot) {
+            if (slot != player.inventory.selected) {
                 Inventory.swapBack()
             }
 
@@ -221,7 +221,7 @@ class ANScaffoldPlus : ANBaseModule(
 
     private fun findBlockSlot(allowSlab: Boolean): Int {
         val player = mc.player ?: return Inventory.INVALID_SLOT
-        val selected = player.inventory.selectedSlot
+        val selected = player.inventory.selected
         if (selected in 0 until Inventory.HOTBAR_SIZE && isValidBlockStack(selected, allowSlab)) return selected
 
         for (slot in 0 until Inventory.HOTBAR_SIZE) {
@@ -232,7 +232,7 @@ class ANScaffoldPlus : ANBaseModule(
 
     private fun findSlabSlot(): Int {
         val player = mc.player ?: return Inventory.INVALID_SLOT
-        val selected = player.inventory.selectedSlot
+        val selected = player.inventory.selected
         if (selected in 0 until Inventory.HOTBAR_SIZE && isSlabStack(selected)) return selected
 
         for (slot in 0 until Inventory.HOTBAR_SIZE) {

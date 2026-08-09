@@ -14,7 +14,6 @@ import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.EntityType
-import net.minecraft.world.entity.player.Input
 import net.minecraft.world.item.BlockItem
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -94,9 +93,7 @@ class BlockPlacer(private val context: Context) {
                 val expectedVal = expected.getValue(property).toString().lowercase()
                 val actualVal = actual.getValue(property).toString().lowercase()
                 
-                
                 if (isPrediction && expectedVal == "double" && (actualVal == "top" || actualVal == "bottom")) continue
-                
                 
                 if ((expectedVal == "left" || expectedVal == "right") &&
                     (actualVal == "single" || actualVal == "left" || actualVal == "right")
@@ -114,7 +111,6 @@ class BlockPlacer(private val context: Context) {
                 isRedstoneOrientationBlock(expected)
     }
 
-
     fun findPlacementPlan(block: PlaceBlock, stack: ItemStack, ignoreFeetCheck: Boolean = false): PlacementPlan? {
         val player = mc.player ?: return null
         val level = mc.level ?: return null
@@ -124,7 +120,6 @@ class BlockPlacer(private val context: Context) {
             if (block.pos.y >= playerFeetY) return null
         }
 
-        
         val posBelow = block.pos.below()
         val expectedBelow = context.schematicBlockMap[posBelow]
         if (expectedBelow != null) {
@@ -170,11 +165,11 @@ class BlockPlacer(private val context: Context) {
 
         val connection = mc.connection ?: return false
         val swapType = if (slot in 0 until Inventory.HOTBAR_SIZE) SilentSwapType.HOTBAR else SilentSwapType.INVENTORY
-        val oldSelectedSlot = player.inventory.selectedSlot
+        val oldSelectedSlot = player.inventory.selected
         if (!Inventory.startSwap(slot, swapType)) return false
         val locallySwappedHotbar = swapType == SilentSwapType.HOTBAR && oldSelectedSlot != slot
         if (locallySwappedHotbar) {
-            player.inventory.selectedSlot = slot
+            player.inventory.selected = slot
         }
 
         return try {
@@ -190,11 +185,10 @@ class BlockPlacer(private val context: Context) {
             val oldPitch = player.xRot
             val oldHeadYaw = player.yHeadRot
             val oldBodyYaw = player.yBodyRot
-            val oldInput = player.input.keyPresses
             if (shouldSneak) {
-                player.setShiftKeyDown(true)
-                player.input.keyPresses = oldInput.withShift(true)
-                connection.send(ServerboundPlayerInputPacket(player.input.keyPresses))
+                player.isShiftKeyDown = true
+                player.input.shiftKeyDown = true
+                connection.send(ServerboundPlayerInputPacket(player.input.leftImpulse, player.input.forwardImpulse, player.input.jumping, true))
             }
 
             try {
@@ -202,7 +196,7 @@ class BlockPlacer(private val context: Context) {
                 player.xRot = plan.rotation.pitch
                 player.yHeadRot = plan.rotation.yaw
                 player.yBodyRot = plan.rotation.yaw
-                connection.send(ServerboundMovePlayerPacket.Rot(plan.rotation.yaw, plan.rotation.pitch, player.onGround(), player.horizontalCollision))
+                connection.send(ServerboundMovePlayerPacket.Rot(plan.rotation.yaw, plan.rotation.pitch, player.onGround()))
                 gameMode.useItemOn(player, InteractionHand.MAIN_HAND, plan.hit)
                 player.swing(InteractionHand.MAIN_HAND)
             } finally {
@@ -210,23 +204,22 @@ class BlockPlacer(private val context: Context) {
                 player.xRot = oldPitch
                 player.yHeadRot = oldHeadYaw
                 player.yBodyRot = oldBodyYaw
-                connection.send(ServerboundMovePlayerPacket.Rot(oldYaw, oldPitch, player.onGround(), player.horizontalCollision))
+                connection.send(ServerboundMovePlayerPacket.Rot(oldYaw, oldPitch, player.onGround()))
             }
 
             if (shouldSneak) {
-                player.setShiftKeyDown(false)
-                player.input.keyPresses = oldInput
-                connection.send(ServerboundPlayerInputPacket(oldInput))
+                player.isShiftKeyDown = false
+                player.input.shiftKeyDown = false
+                connection.send(ServerboundPlayerInputPacket(player.input.leftImpulse, player.input.forwardImpulse, player.input.jumping, false))
             }
             isBlockBuilt((mc.level ?: return false).getBlockState(block.pos), block.state)
         } finally {
             if (locallySwappedHotbar) {
-                player.inventory.selectedSlot = oldSelectedSlot
+                player.inventory.selected = oldSelectedSlot
             }
             Inventory.endSwap(swapType)
         }
     }
-
 
     private fun supportDirections(pos: BlockPos, useScaffoldLogic: Boolean): List<Direction> {
         val level = mc.level ?: return emptyList()
@@ -513,7 +506,7 @@ class BlockPlacer(private val context: Context) {
             }.getOrNull() ?: blockItem.block.getStateForPlacement(context) ?: return null
 
             if (!predicted.canSurvive(level, block.pos)) return null
-            if (!level.isUnobstructed(predicted, block.pos, CollisionContext.placementContext(player))) return null
+            if (!level.isUnobstructed(predicted, block.pos, CollisionContext.of(player))) return null
             predicted
         } finally {
             player.yRot = oldYaw
@@ -536,8 +529,6 @@ class BlockPlacer(private val context: Context) {
         }
         return if (inventory.found) inventory.slot else Inventory.INVALID_SLOT
     }
-
-    
 
     private fun isInteractableBlock(block: Block): Boolean {
         val name = BuiltInRegistries.BLOCK.getKey(block).path
@@ -608,15 +599,9 @@ class BlockPlacer(private val context: Context) {
         }.isNotEmpty()
     }
 
-    private fun Input.withShift(shift: Boolean): Input {
-        return Input(forward(), backward(), left(), right(), jump(), shift, sprint())
-    }
-
     private fun BlockState.canClick(): Boolean {
         return !isAir && !canBeReplaced()
     }
-
-    
 
     data class PlaceBlock(val pos: BlockPos, val state: BlockState)
 

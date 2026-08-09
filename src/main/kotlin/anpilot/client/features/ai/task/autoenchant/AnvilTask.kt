@@ -4,181 +4,226 @@ import anpilot.client.features.ai.agent.ANAgent
 import anpilot.client.features.ai.task.AITask
 import anpilot.client.features.ai.utils.AgentUtils
 import anpilot.client.features.ai.utils.BaritoneHelper
-import anpilot.client.features.manager.rotation.RotationUtil
 import anpilot.client.features.module.player.ANAutoEnchant
-import anpilot.client.features.utility.ANTimer
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
-import net.minecraft.core.Direction
-import net.minecraft.core.component.DataComponents
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.AnvilMenu
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Items
+import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.phys.BlockHitResult
 import net.minecraft.world.phys.Vec3
+import net.minecraft.core.Direction
 
-class AnvilTask(agent: ANAgent) : AITask(agent) {
-    private val mc = Minecraft.getInstance()
-    private val timer = ANTimer()
-    private var cooldownMs = 0L
-    private var phase = Phase.WALK_TO_ANVIL
-    private var interacted = false
-    private var activeOperation: Operation? = null
-    private var attempts = 0
-    private var activeAnvilPos: BlockPos? = null
-    private var openAttempts = 0
+class AnvilTask(
+    agent: ANAgent,
+    private val entries: List<StageEntry>,
+    private val stageName: String
+) : AITask(agent) {
 
-    private enum class Phase {
-        WALK_TO_ANVIL,
-        OPEN_ANVIL,
-        LOAD_ITEM,
-        LOAD_BOOK,
-        TAKE_OUTPUT,
-        FINISH
-    }
+    private val module: ANAutoEnchant
+        get() = agent.module as ANAutoEnchant
 
-    override fun start() {
-        phase = Phase.WALK_TO_ANVIL
-        interacted = false
-        activeOperation = null
-        attempts = 0
-        activeAnvilPos = null
-        openAttempts = 0
-        setCooldown(0)
+    private var targetAnvil: BlockPos? = null
+    private var state = State.APPROACH
+    private var delayTimer = 0
+
+    private enum class State {
+        APPROACH,
+        OPEN,
+        WAIT_OPEN,
+        FUSE,
+        TAKE_RESULT,
+        CLEANUP,
+        WAIT_CLEANUP
     }
 
     override fun tick() {
-        if (!timer.passedMs(cooldownMs)) return
-        val module = agent.module as? ANAutoEnchant ?: return finish()
-        val player = player ?: return
+        if (delayTimer > 0) {
+            delayTimer--
+            return
+        }
 
-        when (phase) {
-            Phase.WALK_TO_ANVIL -> {
-                val anvilPos = currentAnvil(module) ?: return disableWithMessage(module, "CHECK: 没有可用铁砧，自动附魔暂停")
-                if (module.isMissingAnvil(anvilPos)) {
-                    return switchToNextAnvil(module, "CHECK:铁砧损坏", true)
-                }
-                if (player.eyePosition.distanceTo(Vec3.atCenterOf(anvilPos)) <= 3.5) {
-                    BaritoneHelper.cancel()
-                    phase = Phase.OPEN_ANVIL
-                    interacted = false
-                    openAttempts = 0
+        if (targetAnvil == null) {
+            val anvil = module.availableAnvils().firstOrNull()
+            if (anvil == null) {
+                AgentUtils.sendMessage("无可用铁砧，中途停止")
+                agent.scheduler.stop()
+                finished = true
+                return
+            }
+            targetAnvil = anvil
+            state = State.APPROACH
+            delayTimer = 0
+        }
+
+        val anvil = targetAnvil ?: run {
+            agent.scheduler.stop()
+            finished = true
+            return
+        }
+
+        val mc = Minecraft.getInstance()
+
+        if (module.isMissingAnvil(anvil)) {
+            module.removeAnvil(anvil)
+            val nextAnvil = module.availableAnvils().firstOrNull()
+            if (nextAnvil == null) {
+                AgentUtils.sendMessage("铁砧已损毁，且无替代铁砧")
+                agent.scheduler.stop()
+                finished = true
+                return
+            }
+            targetAnvil = nextAnvil
+            state = State.APPROACH
+            return
+        }
+
+        val player = mc.player ?: return
+        val gameMode = mc.gameMode ?: return
+
+        when (state) {
+            State.APPROACH -> {
+                if (player.blockPosition().closerThan(anvil, 3.5)) {
+                    state = State.OPEN
                 } else {
-                    BaritoneHelper.pathNear(anvilPos, 1)
-                    setCooldown(150)
+                    BaritoneHelper.pathNear(anvil, 2)
                 }
             }
-            Phase.OPEN_ANVIL -> {
-                val anvilPos = currentAnvil(module) ?: return disableWithMessage(module, "CHECK: 没有可用铁砧，自动附魔已停止")
-                if (module.isMissingAnvil(anvilPos)) {
-                    return switchToNextAnvil(module, "CHECK:铁砧损坏", true)
-                }
-                if (player.containerMenu is AnvilMenu) {
-                    phase = Phase.LOAD_ITEM
-                    return
-                }
-                if (openAttempts >= MAX_OPEN_ATTEMPTS) {
-                    return switchToNextAnvil(module, "CHECK:铁砧损坏", false)
-                }
-                interactBlock(anvilPos)
-                interacted = true
-                openAttempts++
-                setCooldown(300)
+
+            State.OPEN -> {
+                BaritoneHelper.cancel()
+                val hitResult = BlockHitResult(Vec3.atCenterOf(anvil), Direction.UP, anvil, false)
+                gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hitResult)
+                state = State.WAIT_OPEN
+                delayTimer = 5
             }
-            Phase.LOAD_ITEM -> {
+
+            State.WAIT_OPEN -> {
+                val menu = player.containerMenu
+                if (menu is AnvilMenu) {
+                    state = State.FUSE
+                } else {
+                    state = State.OPEN
+                }
+            }
+
+            State.FUSE -> {
                 val menu = player.containerMenu as? AnvilMenu ?: run {
-                    phase = Phase.OPEN_ANVIL
-                    interacted = false
+                    state = State.OPEN
                     return
                 }
-                clearInputs(menu)
-                val operation = findNextOperation(menu, module)
-                if (operation == null) {
-                    phase = Phase.FINISH
-                    return
-                }
-                activeOperation = operation
-                moveSlotToInput(menu, operation.leftSlot, INPUT_ITEM_SLOT)
-                phase = Phase.LOAD_BOOK
-                setCooldown(200)
-            }
-            Phase.LOAD_BOOK -> {
-                val menu = player.containerMenu as? AnvilMenu ?: return reopen()
-                val operation = activeOperation ?: return reopen()
-                moveSlotToInput(menu, operation.rightSlot, INPUT_BOOK_SLOT)
-                phase = Phase.TAKE_OUTPUT
-                attempts = 0
-                setCooldown(250)
-            }
-            Phase.TAKE_OUTPUT -> {
-                val menu = player.containerMenu as? AnvilMenu ?: return reopen()
-                val cost = menu.cost
-                if (cost > player.experienceLevel) {
-                    player.closeContainer()
-                    AgentUtils.sendMessage("CHECK:当前附魔需要 $cost 级，玩家等级 ${player.experienceLevel}，开始执行经验机任务")
-                    agent.scheduler.push(XpTask(agent))
-                    return finish()
-                }
-                if (menu.slots[OUTPUT_SLOT].item.isEmpty) {
-                    attempts++
-                    if (attempts >= 8) {
-                        clearInputs(menu)
-                        activeOperation = null
-                        phase = Phase.LOAD_ITEM
+
+                val selected = module.selectedEnchants()
+                val specs = entries.mapNotNull { it.resolve(selected) }
+                val slot1 = menu.slots[0].item
+                val slot2 = menu.slots[1].item
+                val output = menu.slots[2].item
+
+                if (output.isEmpty && slot1.isEmpty && slot2.isEmpty) {
+                    val gearSlot = findGearToEnchant(menu, specs)
+                    if (gearSlot != -1) {
+                        moveItem(menu, gearSlot, 0)
+                        delayTimer = 3
+                        return
                     }
-                    setCooldown(250)
+
+                    val (merge1, merge2) = findBookMerge(menu, specs) ?: ( -1 to -1 )
+                    if (merge1 != -1 && merge2 != -1) {
+                        moveItem(menu, merge1, 0)
+                        moveItem(menu, merge2, 1)
+                        delayTimer = 4
+                        return
+                    }
+
+                    state = State.CLEANUP
                     return
                 }
-                mc.gameMode?.handleContainerInput(menu.containerId, OUTPUT_SLOT, 0, ContainerInput.QUICK_MOVE, player)
-                activeOperation = null
-                phase = Phase.LOAD_ITEM
-                setCooldown(300)
+
+                if (!slot1.isEmpty && slot2.isEmpty) {
+                    val currentSpecs = if (slot1.`is`(Items.ENCHANTED_BOOK)) {
+                        bookSpecs(slot1, specs)
+                    } else {
+                        specs.filter { hasEnchantment(slot1, it) }.toSet()
+                    }
+
+                    val missing = specs.filter { it !in currentSpecs }
+                    if (missing.isEmpty()) {
+                        state = State.CLEANUP
+                        return
+                    }
+
+                    val bookSlot = findMatchingBookSlot(menu, missing)
+                    if (bookSlot != -1) {
+                        moveItem(menu, bookSlot, 1)
+                        delayTimer = 4
+                        return
+                    }
+
+                    state = State.CLEANUP
+                    return
+                }
+
+                if (!output.isEmpty) {
+                    state = State.TAKE_RESULT
+                }
             }
-            Phase.FINISH -> {
+
+            State.TAKE_RESULT -> {
+                val menu = player.containerMenu as? AnvilMenu ?: run {
+                    state = State.OPEN
+                    return
+                }
+                gameMode.handleInventoryMouseClick(menu.containerId, 2, 0, ClickType.QUICK_MOVE, player)
+                delayTimer = 4
+                state = State.FUSE
+            }
+
+            State.CLEANUP -> {
+                val menu = player.containerMenu as? AnvilMenu ?: run {
+                    finished = true
+                    return
+                }
+                if (!menu.slots[0].item.isEmpty) {
+                    gameMode.handleInventoryMouseClick(menu.containerId, 0, 0, ClickType.QUICK_MOVE, player)
+                }
+                if (!menu.slots[1].item.isEmpty) {
+                    gameMode.handleInventoryMouseClick(menu.containerId, 1, 0, ClickType.QUICK_MOVE, player)
+                }
+                state = State.WAIT_CLEANUP
+                delayTimer = 3
+            }
+
+            State.WAIT_CLEANUP -> {
                 player.closeContainer()
-                agent.scheduler.push(StoreTask(agent))
-                finish()
+                AgentUtils.sendMessage("阶段 [$stageName] 合成完成")
+                finished = true
             }
         }
     }
 
-    override fun stop() {
-        BaritoneHelper.cancel()
-        player?.closeContainer()
-    }
-
-    private fun findNextOperation(menu: AbstractContainerMenu, module: ANAutoEnchant): Operation? {
-        val specs = module.selectedEnchants()
+    private fun findGearToEnchant(menu: AbstractContainerMenu, specs: List<EnchantSpec>): Int {
         for (slot in PLAYER_MENU_START until menu.slots.size) {
             val stack = menu.slots[slot].item
-            if (!module.isTargetItem(stack)) continue
-            for (stage in Order.stagesFor(stack.item, specs)) {
-                val missingSpecs = stage.specs(specs).filter { !hasEnchantment(stack, it) }
-                if (missingSpecs.isEmpty()) continue
-
-                val combinedBook = findBookWithAll(menu, missingSpecs)
-                if (combinedBook != -1) {
-                    return Operation(slot, combinedBook)
-                }
-
-                if (missingSpecs.size == 1) {
-                    val bookSlot = findBookSlot(menu, module, missingSpecs.first())
-                    if (bookSlot != -1) return Operation(slot, bookSlot)
-                    continue
-                }
-
-                val bookMerge = findBookMerge(menu, missingSpecs)
-                if (bookMerge != null) {
-                    return Operation(bookMerge.first, bookMerge.second)
-                }
+            if (module.isTargetItem(stack) && !hasAllEnchantments(stack, specs)) {
+                return slot
             }
         }
-        return null
+        return -1
     }
 
-    private fun findBookSlot(menu: AbstractContainerMenu, module: ANAutoEnchant, spec: EnchantSpec): Int {
+    private fun findMatchingBookSlot(menu: AbstractContainerMenu, missing: List<EnchantSpec>): Int {
+        for (spec in missing) {
+            val slot = findBookSlotForSpec(menu, spec)
+            if (slot != -1) return slot
+        }
+        return -1
+    }
+
+    private fun findBookSlotForSpec(menu: AbstractContainerMenu, spec: EnchantSpec): Int {
         for (slot in PLAYER_MENU_START until menu.slots.size) {
             val stack = menu.slots[slot].item
             if (module.isMatchingBook(stack, spec)) return slot
@@ -187,10 +232,8 @@ class AnvilTask(agent: ANAgent) : AITask(agent) {
     }
 
     private fun hasEnchantment(stack: ItemStack, spec: EnchantSpec): Boolean {
-        val enchantments = stack.get(DataComponents.ENCHANTMENTS) ?: return false
-        return enchantments.entrySet().any { entry ->
-            entry.key.`is`(spec.enchantment) && (spec.level == null || entry.intValue >= spec.level)
-        }
+        val level = EnchantmentHelper.getItemEnchantmentLevel(spec.enchantment, stack)
+        return level > 0 && (spec.level == null || level >= spec.level)
     }
 
     private fun findBookWithAll(menu: AbstractContainerMenu, specs: List<EnchantSpec>): Int {
@@ -224,11 +267,11 @@ class AnvilTask(agent: ANAgent) : AITask(agent) {
     }
 
     private fun bookSpecs(stack: ItemStack, specs: List<EnchantSpec>): Set<EnchantSpec> {
-        val stored = stack.get(DataComponents.STORED_ENCHANTMENTS) ?: return emptySet()
+        val enchantments = EnchantmentHelper.getEnchantments(stack)
         val found = LinkedHashSet<EnchantSpec>()
-        for (entry in stored.entrySet()) {
+        for ((enchantment, level) in enchantments) {
             for (spec in specs) {
-                if (entry.key.`is`(spec.enchantment) && (spec.level == null || entry.intValue >= spec.level)) {
+                if (enchantment == spec.enchantment && (spec.level == null || level >= spec.level)) {
                     found.add(spec)
                 }
             }
@@ -236,113 +279,22 @@ class AnvilTask(agent: ANAgent) : AITask(agent) {
         return found
     }
 
-    private fun clearInputs(menu: AbstractContainerMenu) {
-        val player = player ?: return
-        if (!menu.slots[INPUT_ITEM_SLOT].item.isEmpty) {
-            mc.gameMode?.handleContainerInput(menu.containerId, INPUT_ITEM_SLOT, 0, ContainerInput.QUICK_MOVE, player)
-        }
-        if (!menu.slots[INPUT_BOOK_SLOT].item.isEmpty) {
-            mc.gameMode?.handleContainerInput(menu.containerId, INPUT_BOOK_SLOT, 0, ContainerInput.QUICK_MOVE, player)
+    private fun hasAllEnchantments(stack: ItemStack, specs: List<EnchantSpec>): Boolean {
+        val enchantments = EnchantmentHelper.getEnchantments(stack)
+        return specs.all { spec ->
+            val lvl = enchantments[spec.enchantment] ?: 0
+            lvl > 0 && (spec.level == null || lvl >= spec.level)
         }
     }
 
-    private fun moveSlotToInput(menu: AbstractContainerMenu, fromSlot: Int, inputSlot: Int) {
-        val player = player ?: return
-        mc.gameMode?.handleContainerInput(menu.containerId, fromSlot, 0, ContainerInput.PICKUP, player)
-        mc.gameMode?.handleContainerInput(menu.containerId, inputSlot, 0, ContainerInput.PICKUP, player)
-        if (!menu.carried.isEmpty) {
-            mc.gameMode?.handleContainerInput(menu.containerId, fromSlot, 0, ContainerInput.PICKUP, player)
-        }
+    private fun moveItem(menu: AbstractContainerMenu, fromSlot: Int, toSlot: Int) {
+        val player = Minecraft.getInstance().player ?: return
+        val gameMode = Minecraft.getInstance().gameMode ?: return
+        gameMode.handleInventoryMouseClick(menu.containerId, fromSlot, 0, ClickType.PICKUP, player)
+        gameMode.handleInventoryMouseClick(menu.containerId, toSlot, 0, ClickType.PICKUP, player)
     }
-
-    private fun reopen() {
-        player?.closeContainer()
-        phase = Phase.OPEN_ANVIL
-        interacted = false
-        openAttempts = 0
-        setCooldown(250)
-    }
-
-    private fun currentAnvil(module: ANAutoEnchant): BlockPos? {
-        val anvils = module.availableAnvils()
-        if (anvils.isEmpty()) return null
-        val active = activeAnvilPos
-        if (active != null && active in anvils) return active
-        activeAnvilPos = anvils.first()
-        return activeAnvilPos
-    }
-
-    private fun switchToNextAnvil(module: ANAutoEnchant, message: String, removeCurrent: Boolean) {
-        val previous = activeAnvilPos
-        if (removeCurrent && previous != null) {
-            module.removeAnvil(previous)
-        }
-
-        val anvils = module.availableAnvils()
-        if (anvils.isEmpty()) {
-            return disableWithMessage(module, "没有可用铁砧，自动附魔已停止")
-        }
-
-        val next = when {
-            previous == null -> anvils.first()
-            previous !in anvils -> anvils.first()
-            anvils.size > 1 -> anvils[(anvils.indexOf(previous) + 1) % anvils.size]
-            else -> return disableWithMessage(module, "$message，且没有其它可用铁砧")
-        }
-
-        activeAnvilPos = next
-        activeOperation = null
-        attempts = 0
-        openAttempts = 0
-        interacted = false
-        player?.closeContainer()
-        BaritoneHelper.cancel()
-        phase = Phase.WALK_TO_ANVIL
-        AgentUtils.sendMessage("$message，切换到铁砧: $next")
-        setCooldown(250)
-    }
-
-    private fun interactBlock(pos: BlockPos) {
-        val p = player ?: return
-        val targetVec = Vec3.atCenterOf(pos)
-        val rotations = RotationUtil.getRotationsTo(p.eyePosition, targetVec)
-        p.yRot = rotations[0]
-        p.xRot = rotations[1]
-        val hit = BlockHitResult(targetVec, Direction.UP, pos, false)
-        mc.gameMode?.useItemOn(p, InteractionHand.MAIN_HAND, hit)
-        p.swing(InteractionHand.MAIN_HAND)
-    }
-
-    private fun finishWithMessage(module: ANAutoEnchant, message: String) {
-        module.sendClientMessage(message)
-        finish()
-    }
-
-    private fun disableWithMessage(module: ANAutoEnchant, message: String) {
-        player?.closeContainer()
-        module.disable(message)
-        finish()
-    }
-
-    private fun setCooldown(ms: Long) {
-        cooldownMs = ms
-        timer.reset()
-    }
-
-    private fun finish() {
-        finished = true
-    }
-
-    private data class Operation(
-        val leftSlot: Int,
-        val rightSlot: Int
-    )
 
     private companion object {
-        const val INPUT_ITEM_SLOT = 0
-        const val INPUT_BOOK_SLOT = 1
-        const val OUTPUT_SLOT = 2
         const val PLAYER_MENU_START = 3
-        const val MAX_OPEN_ATTEMPTS = 5
     }
 }

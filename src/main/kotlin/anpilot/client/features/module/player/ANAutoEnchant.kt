@@ -12,10 +12,8 @@ import anpilot.client.features.module.ANWorldRenderModule
 import anpilot.client.features.setting.ANSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.core.BlockPos
-import net.minecraft.core.component.DataComponents
-import net.minecraft.resources.ResourceKey
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.ChestMenu
 import net.minecraft.world.inventory.ShulkerBoxMenu
@@ -23,6 +21,7 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
 import net.minecraft.world.item.enchantment.Enchantment
+import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.enchantment.Enchantments
 import net.minecraft.world.level.block.AnvilBlock
 import net.minecraft.world.level.block.ButtonBlock
@@ -49,8 +48,7 @@ class ANAutoEnchant : ANBaseModule(
         Axe,
         Shovel,
         Sword,
-        Elytra,
-        Spear
+        Elytra
     }
 
     enum class ChestRole {
@@ -89,7 +87,6 @@ class ANAutoEnchant : ANBaseModule(
     val sweepingEdge = addSetting(ANSetting("横扫之刃", true) { targetType.value == TargetType.Sword })
     val fireAspect = addSetting(ANSetting("火焰附加", true) { usesWeaponEnchants() })
     val knockback = addSetting(ANSetting("击退", true) { usesWeaponEnchants() })
-    val lunge = addSetting(ANSetting("突进", true) { targetType.value == TargetType.Spear })
 
     var xpStandPos: BlockPos? = null
         private set
@@ -209,7 +206,7 @@ class ANAutoEnchant : ANBaseModule(
         specs.add(EnchantSpec(Enchantments.UNBREAKING, 3, "耐久3", targetItems, unbreaking.value))
 
         if (isArmorTarget()) {
-            specs.add(EnchantSpec(Enchantments.PROTECTION, 4, "保护4", targetItems, protection.value))
+            specs.add(EnchantSpec(Enchantments.ALL_DAMAGE_PROTECTION, 4, "保护4", targetItems, protection.value))
             specs.add(EnchantSpec(Enchantments.FIRE_PROTECTION, 4, "火焰保护4", targetItems, fireProtection.value))
             specs.add(EnchantSpec(Enchantments.BLAST_PROTECTION, 4, "爆炸保护4", targetItems, blastProtection.value))
             specs.add(EnchantSpec(Enchantments.PROJECTILE_PROTECTION, 4, "弹射物保护4", targetItems, projectileProtection.value))
@@ -222,7 +219,7 @@ class ANAutoEnchant : ANBaseModule(
         }
 
         if (targetType.value == TargetType.Boots) {
-            specs.add(EnchantSpec(Enchantments.FEATHER_FALLING, 4, "摔落保护4", targetItems, featherFalling.value))
+            specs.add(EnchantSpec(Enchantments.FALL_PROTECTION, 4, "摔落保护4", targetItems, featherFalling.value))
             specs.add(EnchantSpec(Enchantments.DEPTH_STRIDER, 3, "深海探索者3", targetItems, depthStrider.value))
             specs.add(EnchantSpec(Enchantments.FROST_WALKER, 2, "冰霜行者2", targetItems, frostWalker.value))
             specs.add(EnchantSpec(Enchantments.SOUL_SPEED, 3, "灵魂疾行3", targetItems, soulSpeed.value))
@@ -233,9 +230,9 @@ class ANAutoEnchant : ANBaseModule(
         }
 
         if (isToolTarget()) {
-            specs.add(EnchantSpec(Enchantments.EFFICIENCY, 5, "效率5", targetItems, efficiency.value))
+            specs.add(EnchantSpec(Enchantments.BLOCK_EFFICIENCY, 5, "效率5", targetItems, efficiency.value))
             specs.add(EnchantSpec(Enchantments.SILK_TOUCH, null, "精准采集", targetItems, silkTouch.value))
-            specs.add(EnchantSpec(Enchantments.FORTUNE, 3, "时运3", targetItems, fortune.value))
+            specs.add(EnchantSpec(Enchantments.BLOCK_FORTUNE, 3, "时运3", targetItems, fortune.value))
         }
 
         if (usesDamageEnchants()) {
@@ -245,17 +242,13 @@ class ANAutoEnchant : ANBaseModule(
         }
 
         if (usesWeaponEnchants()) {
-            specs.add(EnchantSpec(Enchantments.LOOTING, 3, "抢夺3", targetItems, looting.value))
+            specs.add(EnchantSpec(Enchantments.MOB_LOOTING, 3, "抢夺3", targetItems, looting.value))
             specs.add(EnchantSpec(Enchantments.FIRE_ASPECT, 2, "火焰附加2", targetItems, fireAspect.value))
             specs.add(EnchantSpec(Enchantments.KNOCKBACK, 2, "击退2", targetItems, knockback.value))
         }
 
         if (targetType.value == TargetType.Sword) {
             specs.add(EnchantSpec(Enchantments.SWEEPING_EDGE, 3, "横扫之刃3", targetItems, sweepingEdge.value))
-        }
-
-        if (targetType.value == TargetType.Spear) {
-            specs.add(EnchantSpec(Enchantments.LUNGE, 3, "突进3", targetItems, lunge.value))
         }
 
         return specs.filter { it.enabled }
@@ -269,17 +262,8 @@ class ANAutoEnchant : ANBaseModule(
         TargetType.Pickaxe -> listOf(Items.DIAMOND_PICKAXE, Items.NETHERITE_PICKAXE)
         TargetType.Axe -> listOf(Items.DIAMOND_AXE, Items.NETHERITE_AXE)
         TargetType.Shovel -> listOf(Items.DIAMOND_SHOVEL, Items.NETHERITE_SHOVEL)
-        TargetType.Sword -> listOf(
-            Items.DIAMOND_SWORD,
-            Items.NETHERITE_SWORD
-        )
-        TargetType.Elytra -> listOf(
-            Items.ELYTRA
-        )
-        TargetType.Spear -> listOf(
-            Items.DIAMOND_SPEAR,
-            Items.NETHERITE_SPEAR
-        )
+        TargetType.Sword -> listOf(Items.DIAMOND_SWORD, Items.NETHERITE_SWORD)
+        TargetType.Elytra -> listOf(Items.ELYTRA)
     }
 
     fun targetBaseItems(): List<Item> = targetItems()
@@ -289,26 +273,25 @@ class ANAutoEnchant : ANBaseModule(
 
     fun isTargetItem(stack: ItemStack): Boolean = !stack.isEmpty && targetItems().contains(stack.item)
 
-    fun isMatchingBook(stack: ItemStack, enchant: ResourceKey<Enchantment>): Boolean {
+    fun isMatchingBook(stack: ItemStack, enchant: Enchantment): Boolean {
         if (!stack.`is`(Items.ENCHANTED_BOOK)) return false
-        val stored = stack.get(DataComponents.STORED_ENCHANTMENTS) ?: return false
-        return stored.entrySet().any { it.key.`is`(enchant) }
+        val enchantments = EnchantmentHelper.getEnchantments(stack)
+        return enchantments.containsKey(enchant)
     }
 
     fun isMatchingBook(stack: ItemStack, spec: EnchantSpec): Boolean {
         if (!stack.`is`(Items.ENCHANTED_BOOK)) return false
-        val stored = stack.get(DataComponents.STORED_ENCHANTMENTS) ?: return false
-        return stored.entrySet().any { entry ->
-            entry.key.`is`(spec.enchantment) && (spec.level == null || entry.intValue >= spec.level)
-        }
+        val enchantments = EnchantmentHelper.getEnchantments(stack)
+        val lvl = enchantments[spec.enchantment] ?: return false
+        return spec.level == null || lvl >= spec.level
     }
 
     fun firstBookEnchant(stack: ItemStack): EnchantSpec? {
         if (!stack.`is`(Items.ENCHANTED_BOOK)) return null
-        val stored = stack.get(DataComponents.STORED_ENCHANTMENTS) ?: return null
-        for (entry in stored.entrySet()) {
-            return selectedEnchants().firstOrNull { entry.key.`is`(it.enchantment) }
-                ?: knownEnchantSpecs().firstOrNull { entry.key.`is`(it.enchantment) }
+        val enchantments = EnchantmentHelper.getEnchantments(stack)
+        for ((enchant, _) in enchantments) {
+            return selectedEnchants().firstOrNull { it.enchantment == enchant }
+                ?: knownEnchantSpecs().firstOrNull { it.enchantment == enchant }
         }
         return null
     }
@@ -500,7 +483,7 @@ class ANAutoEnchant : ANBaseModule(
         pos: BlockPos,
         secondaryPos: BlockPos?,
         role: ChestRole,
-        enchantment: ResourceKey<Enchantment>?,
+        enchantment: Enchantment?,
         label: String
     ): ChestBinding = ChestBinding(
         pos.immutable(),
@@ -561,7 +544,6 @@ class ANAutoEnchant : ANBaseModule(
             return
         }
         anvilPositions.add(immutable)
-        
     }
 
     private fun pruneMissingAnvils() {
@@ -600,10 +582,10 @@ class ANAutoEnchant : ANBaseModule(
     }
 
     private fun usesDamageEnchants(): Boolean =
-        targetType.value == TargetType.Axe || targetType.value == TargetType.Sword || targetType.value == TargetType.Spear
+        targetType.value == TargetType.Axe || targetType.value == TargetType.Sword
 
     private fun usesWeaponEnchants(): Boolean =
-        targetType.value == TargetType.Sword || targetType.value == TargetType.Spear
+        targetType.value == TargetType.Sword
 
     private fun isArmorTarget(): Boolean = when (targetType.value) {
         TargetType.Helmet,
@@ -620,29 +602,6 @@ class ANAutoEnchant : ANBaseModule(
         else -> false
     }
 
-    private fun itemLabel(item: Item): String = when (item) {
-        Items.DIAMOND_HELMET -> "钻石头盔"
-        Items.NETHERITE_HELMET -> "合金头盔"
-        Items.DIAMOND_CHESTPLATE -> "钻石胸甲"
-        Items.NETHERITE_CHESTPLATE -> "合金胸甲"
-        Items.DIAMOND_LEGGINGS -> "钻石护腿"
-        Items.NETHERITE_LEGGINGS -> "合金护腿"
-        Items.DIAMOND_BOOTS -> "钻石靴子"
-        Items.NETHERITE_BOOTS -> "合金靴子"
-        Items.DIAMOND_PICKAXE -> "钻石镐"
-        Items.NETHERITE_PICKAXE -> "合金镐"
-        Items.DIAMOND_AXE -> "钻石斧"
-        Items.NETHERITE_AXE -> "合金斧"
-        Items.DIAMOND_SHOVEL -> "钻石锹"
-        Items.NETHERITE_SHOVEL -> "合金锹"
-        Items.DIAMOND_SWORD -> "钻石剑"
-        Items.NETHERITE_SWORD -> "合金剑"
-        Items.ELYTRA -> "鞘翅"
-        Items.DIAMOND_SPEAR -> "钻石矛"
-        Items.NETHERITE_SPEAR -> "合金矛"
-        else -> item.toString()
-    }
-
     private fun targetTypeLabel(): String = when (targetType.value) {
         TargetType.Helmet -> "头盔"
         TargetType.Chestplate -> "胸甲"
@@ -653,35 +612,33 @@ class ANAutoEnchant : ANBaseModule(
         TargetType.Shovel -> "锹"
         TargetType.Sword -> "剑"
         TargetType.Elytra -> "鞘翅"
-        TargetType.Spear -> "矛"
     }
 
     private fun knownEnchantSpecs(): List<EnchantSpec> = listOf(
         EnchantSpec(Enchantments.MENDING, null, "经验修补", targetItems(), true),
         EnchantSpec(Enchantments.UNBREAKING, 3, "耐久3", targetItems(), true),
-        EnchantSpec(Enchantments.PROTECTION, 4, "保护4", targetItems(), true),
+        EnchantSpec(Enchantments.ALL_DAMAGE_PROTECTION, 4, "保护4", targetItems(), true),
         EnchantSpec(Enchantments.FIRE_PROTECTION, 4, "火焰保护4", targetItems(), true),
         EnchantSpec(Enchantments.BLAST_PROTECTION, 4, "爆炸保护4", targetItems(), true),
         EnchantSpec(Enchantments.PROJECTILE_PROTECTION, 4, "弹射物保护4", targetItems(), true),
         EnchantSpec(Enchantments.THORNS, 3, "荆棘3", targetItems(), true),
         EnchantSpec(Enchantments.RESPIRATION, 3, "水下呼吸3", listOf(Items.DIAMOND_HELMET, Items.NETHERITE_HELMET), true),
         EnchantSpec(Enchantments.AQUA_AFFINITY, null, "水下速掘", listOf(Items.DIAMOND_HELMET, Items.NETHERITE_HELMET), true),
-        EnchantSpec(Enchantments.FEATHER_FALLING, 4, "摔落保护4", listOf(Items.DIAMOND_BOOTS, Items.NETHERITE_BOOTS), true),
+        EnchantSpec(Enchantments.FALL_PROTECTION, 4, "摔落保护4", listOf(Items.DIAMOND_BOOTS, Items.NETHERITE_BOOTS), true),
         EnchantSpec(Enchantments.DEPTH_STRIDER, 3, "深海探索者3", listOf(Items.DIAMOND_BOOTS, Items.NETHERITE_BOOTS), true),
         EnchantSpec(Enchantments.FROST_WALKER, 2, "冰霜行者2", listOf(Items.DIAMOND_BOOTS, Items.NETHERITE_BOOTS), true),
-        EnchantSpec(Enchantments.EFFICIENCY, 5, "效率5", targetItems(), true),
+        EnchantSpec(Enchantments.BLOCK_EFFICIENCY, 5, "效率5", targetItems(), true),
         EnchantSpec(Enchantments.SILK_TOUCH, null, "精准采集", targetItems(), true),
-        EnchantSpec(Enchantments.FORTUNE, 3, "时运3", targetItems(), true),
+        EnchantSpec(Enchantments.BLOCK_FORTUNE, 3, "时运3", targetItems(), true),
         EnchantSpec(Enchantments.SWIFT_SNEAK, 3, "迅捷潜行3", listOf(Items.DIAMOND_LEGGINGS, Items.NETHERITE_LEGGINGS), true),
         EnchantSpec(Enchantments.SOUL_SPEED, 3, "灵魂疾行3", listOf(Items.DIAMOND_BOOTS, Items.NETHERITE_BOOTS), true),
         EnchantSpec(Enchantments.SHARPNESS, 5, "锋利5", targetItems(), true),
         EnchantSpec(Enchantments.SMITE, 5, "亡灵杀手5", targetItems(), true),
         EnchantSpec(Enchantments.BANE_OF_ARTHROPODS, 5, "节肢杀手5", targetItems(), true),
-        EnchantSpec(Enchantments.LOOTING, 3, "抢夺3", targetItems(), true),
+        EnchantSpec(Enchantments.MOB_LOOTING, 3, "抢夺3", targetItems(), true),
         EnchantSpec(Enchantments.SWEEPING_EDGE, 3, "横扫之刃3", targetItems(), true),
         EnchantSpec(Enchantments.FIRE_ASPECT, 2, "火焰附加2", targetItems(), true),
-        EnchantSpec(Enchantments.KNOCKBACK, 2, "击退2", targetItems(), true),
-        EnchantSpec(Enchantments.LUNGE, 3, "突进3", targetItems(), true)
+        EnchantSpec(Enchantments.KNOCKBACK, 2, "击退2", targetItems(), true)
     )
 
     private fun storageSlotCount(menu: AbstractContainerMenu): Int =
@@ -692,7 +649,7 @@ class ANAutoEnchant : ANBaseModule(
         ANRender3DEngine.box(context, AABB(pos), line, fill)
     }
 
-    private fun colorForBinding(role: ChestRole, enchantment: ResourceKey<Enchantment>?): Color {
+    private fun colorForBinding(role: ChestRole, enchantment: Enchantment?): Color {
         val key = when (role) {
             ChestRole.Book -> "Book:${enchantment.toString()}"
             ChestRole.Gear -> "Gear"
@@ -710,7 +667,7 @@ class ANAutoEnchant : ANBaseModule(
         val pos: BlockPos,
         val secondaryPos: BlockPos?,
         val role: ChestRole,
-        val enchantment: ResourceKey<Enchantment>?,
+        val enchantment: Enchantment?,
         val label: String,
         val color: Color
     ) {

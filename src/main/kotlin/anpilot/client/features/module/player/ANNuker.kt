@@ -12,7 +12,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ItemSelectSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -171,8 +171,8 @@ class ANNuker : ANBaseModule(
                     if (fastTarget != target && !prepareRotationForAction(fastTarget)) return
 
                     val bestSlot = findBestTool(level.getBlockState(fastTarget.pos))
-                    if (bestSlot != -1 && bestSlot != player.inventory.selectedSlot) {
-                        player.inventory.selectedSlot = bestSlot
+                    if (bestSlot != -1 && bestSlot != player.inventory.selected) {
+                        player.inventory.selected = bestSlot
                     }
 
                     if (player.abilities.instabuild) {
@@ -242,8 +242,8 @@ class ANNuker : ANBaseModule(
         val gameMode = Minecraft.getInstance().gameMode ?: return
 
         val bestSlot = findBestTool(level.getBlockState(target.pos))
-        if (bestSlot != -1 && bestSlot != player.inventory.selectedSlot) {
-            player.inventory.selectedSlot = bestSlot
+        if (bestSlot != -1 && bestSlot != player.inventory.selected) {
+            player.inventory.selected = bestSlot
         }
 
         if (player.abilities.instabuild) {

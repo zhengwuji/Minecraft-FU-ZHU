@@ -81,8 +81,7 @@ class ANRotationManager {
                 player.position().z,
                 fixedRotation.yaw,
                 fixedRotation.pitch,
-                player.onGround(),
-                player.horizontalCollision
+                player.onGround()
             )
         )
         controller.state.serverRotation = fixedRotation.copy()
@@ -271,14 +270,12 @@ class ANRotationManager {
                         packet.getZ(0.0),
                         serverYaw,
                         serverPitch,
-                        packet.isOnGround,
-                        packet.horizontalCollision()
+                        packet.isOnGround
                     )
                     is ServerboundMovePlayerPacket.Rot -> ServerboundMovePlayerPacket.Rot(
                         serverYaw,
                         serverPitch,
-                        packet.isOnGround,
-                        packet.horizontalCollision()
+                        packet.isOnGround
                     )
                     else -> ServerboundMovePlayerPacket.PosRot(
                         packet.getX(player.x),
@@ -286,8 +283,7 @@ class ANRotationManager {
                         packet.getZ(player.z),
                         serverYaw,
                         serverPitch,
-                        packet.isOnGround,
-                        packet.horizontalCollision()
+                        packet.isOnGround
                     )
                 }
             }
@@ -360,7 +356,6 @@ class ANRotationManager {
             Items.EXPERIENCE_BOTTLE,
             Items.SPLASH_POTION,
             Items.LINGERING_POTION,
-            Items.WIND_CHARGE,
             Items.FIRE_CHARGE
         )
     }

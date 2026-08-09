@@ -2,9 +2,8 @@ package anpilot.client.renderer.gui
 
 import anpilot.client.renderer.ANGUIRenderer
 import com.mojang.blaze3d.platform.InputConstants
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.input.KeyEvent
 import net.minecraft.network.chat.Component
 import java.awt.Color
 
@@ -52,7 +51,7 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
         )
     )
 
-    override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, deltaTicks: Float) {
+    override fun render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {
         val panelWidth = 690f
         val panelHeight = 430f
         val panelX = (width - panelWidth) / 2f
@@ -60,14 +59,14 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
         val contentX = panelX + 30f
         val contentY = panelY + 78f
 
-        ANGUIRenderer.rect(context, 0f, 0f, width.toFloat(), height.toFloat(), Color(0xAA111722.toInt(), true))
-        drawNeumorphicPanel(context, panelX, panelY, panelWidth, panelHeight, 26f, Color(0xEE161D29.toInt(), true))
+        ANGUIRenderer.rect(graphics, 0f, 0f, width.toFloat(), height.toFloat(), Color(0xAA111722.toInt(), true))
+        drawNeumorphicPanel(graphics, panelX, panelY, panelWidth, panelHeight, 26f, Color(0xEE161D29.toInt(), true))
 
-        context.text(font, "ANPilot", (panelX + 34f).toInt(), (panelY + 28f).toInt(), 0xF2FFFFFF.toInt())
-        context.text(font, "neumorphic clickgui preview", (panelX + 34f).toInt(), (panelY + 44f).toInt(), 0x7AFFFFFF)
+        graphics.drawString(font, "ANPilot", (panelX + 34f).toInt(), (panelY + 28f).toInt(), 0xF2FFFFFF.toInt(), false)
+        graphics.drawString(font, "neumorphic clickgui preview", (panelX + 34f).toInt(), (panelY + 44f).toInt(), 0x7AFFFFFF, false)
 
-        drawInsetPanel(context, panelX + panelWidth - 185f, panelY + 25f, 150f, 30f, 14f)
-        context.text(font, "Search modules", (panelX + panelWidth - 168f).toInt(), (panelY + 35f).toInt(), 0x73FFFFFF)
+        drawInsetPanel(graphics, panelX + panelWidth - 185f, panelY + 25f, 150f, 30f, 14f)
+        graphics.drawString(font, "Search modules", (panelX + panelWidth - 168f).toInt(), (panelY + 35f).toInt(), 0x73FFFFFF, false)
 
         val gap = 18f
         val categoryWidth = (panelWidth - 60f - gap) / 2f
@@ -76,7 +75,7 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
             val column = index % 2
             val row = index / 2
             drawCategoryPanel(
-                context,
+                graphics,
                 contentX + column * (categoryWidth + gap),
                 contentY + row * (categoryHeight + gap),
                 categoryWidth,
@@ -85,14 +84,14 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
             )
         }
 
-        context.centeredText(font, "Right Shift / Esc", width / 2, (panelY + panelHeight + 14f).toInt(), 0x66FFFFFF)
-        super.extractRenderState(context, mouseX, mouseY, deltaTicks)
+        graphics.drawCenteredString(font, "Right Shift / Esc", width / 2, (panelY + panelHeight + 14f).toInt(), 0x66FFFFFF)
+        super.render(graphics, mouseX, mouseY, partialTick)
     }
 
-    private fun drawCategoryPanel(context: GuiGraphicsExtractor, x: Float, y: Float, width: Float, height: Float, category: CategoryPreview) {
-        drawNeumorphicPanel(context, x, y, width, height, 20f, Color(0xFF171F2B.toInt(), true))
-        context.text(font, category.name, (x + 18f).toInt(), (y + 16f).toInt(), 0xF2FFFFFF.toInt())
-        context.text(font, category.subtitle, (x + 18f).toInt(), (y + 31f).toInt(), 0x73FFFFFF)
+    private fun drawCategoryPanel(graphics: GuiGraphics, x: Float, y: Float, width: Float, height: Float, category: CategoryPreview) {
+        drawNeumorphicPanel(graphics, x, y, width, height, 20f, Color(0xFF171F2B.toInt(), true))
+        graphics.drawString(font, category.name, (x + 18f).toInt(), (y + 16f).toInt(), 0xF2FFFFFF.toInt(), false)
+        graphics.drawString(font, category.subtitle, (x + 18f).toInt(), (y + 31f).toInt(), 0x73FFFFFF, false)
 
         val pillWidth = (width - 46f) / 2f
         val pillHeight = 34f
@@ -100,7 +99,7 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
             val column = index % 2
             val row = index / 2
             drawModulePill(
-                context,
+                graphics,
                 x + 18f + column * (pillWidth + 10f),
                 y + 58f + row * (pillHeight + 10f),
                 pillWidth,
@@ -110,41 +109,41 @@ class ANClickGuiScreen : Screen(Component.literal("ANPilot ClickGui")) {
         }
     }
 
-    private fun drawModulePill(context: GuiGraphicsExtractor, x: Float, y: Float, width: Float, height: Float, module: ModulePreview) {
+    private fun drawModulePill(graphics: GuiGraphics, x: Float, y: Float, width: Float, height: Float, module: ModulePreview) {
         if (module.enabled) {
-            drawNeumorphicPanel(context, x, y, width, height, 13f, Color(0xFF1A2332.toInt(), true))
+            drawNeumorphicPanel(graphics, x, y, width, height, 13f, Color(0xFF1A2332.toInt(), true))
         } else {
-            drawInsetPanel(context, x, y, width, height, 13f)
+            drawInsetPanel(graphics, x, y, width, height, 13f)
         }
 
-        context.text(font, module.name, (x + 12f).toInt(), (y + 8f).toInt(), if (module.enabled) 0xE6FFFFFF.toInt() else 0xA6FFFFFF.toInt())
+        graphics.drawString(font, module.name, (x + 12f).toInt(), (y + 8f).toInt(), if (module.enabled) 0xE6FFFFFF.toInt() else 0xA6FFFFFF.toInt(), false)
         val dotColor = if (module.enabled) Color(0xFF7282FF.toInt(), true) else Color(0x40FFFFFF, true)
-        ANGUIRenderer.roundedRect(context, x + width - 18f, y + 12f, 8f, 8f, 4f, dotColor)
+        ANGUIRenderer.roundedRect(graphics, x + width - 18f, y + 12f, 8f, 8f, 4f, dotColor)
     }
 
-    private fun drawNeumorphicPanel(context: GuiGraphicsExtractor, x: Float, y: Float, width: Float, height: Float, radius: Float, color: Color) {
+    private fun drawNeumorphicPanel(graphics: GuiGraphics, x: Float, y: Float, width: Float, height: Float, radius: Float, color: Color) {
         for (i in 4 downTo 1) {
-            ANGUIRenderer.roundedRect(context, x + i, y + i, width, height, radius, Color(0x09000000, true))
+            ANGUIRenderer.roundedRect(graphics, x + i, y + i, width, height, radius, Color(0x09000000, true))
         }
         for (i in 3 downTo 1) {
-            ANGUIRenderer.roundedRect(context, x - i, y - i, width, height, radius, Color(0x08FFFFFF, true))
+            ANGUIRenderer.roundedRect(graphics, x - i, y - i, width, height, radius, Color(0x08FFFFFF, true))
         }
-        ANGUIRenderer.roundedRect(context, x, y, width, height, radius, color)
+        ANGUIRenderer.roundedRect(graphics, x, y, width, height, radius, color)
     }
 
-    private fun drawInsetPanel(context: GuiGraphicsExtractor, x: Float, y: Float, width: Float, height: Float, radius: Float) {
-        ANGUIRenderer.roundedRect(context, x, y, width, height, radius, Color(0xFF121925.toInt(), true))
-        ANGUIRenderer.roundedRect(context, x + 1f, y + 1f, width - 2f, height - 2f, radius - 1f, Color(0x33000000, true))
-        ANGUIRenderer.roundedRect(context, x + 2f, y + 2f, width - 4f, height - 4f, radius - 2f, Color(0x0FFFFFFF, true))
+    private fun drawInsetPanel(graphics: GuiGraphics, x: Float, y: Float, width: Float, height: Float, radius: Float) {
+        ANGUIRenderer.roundedRect(graphics, x, y, width, height, radius, Color(0xFF121925.toInt(), true))
+        ANGUIRenderer.roundedRect(graphics, x + 1f, y + 1f, width - 2f, height - 2f, radius - 1f, Color(0x33000000, true))
+        ANGUIRenderer.roundedRect(graphics, x + 2f, y + 2f, width - 4f, height - 4f, radius - 2f, Color(0x0FFFFFFF, true))
     }
 
-    override fun keyPressed(event: KeyEvent): Boolean {
-        if (event.key() == InputConstants.KEY_RSHIFT || event.key() == InputConstants.KEY_ESCAPE) {
+    override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
+        if (keyCode == InputConstants.KEY_RSHIFT || keyCode == InputConstants.KEY_ESCAPE) {
             onClose()
             return true
         }
 
-        return super.keyPressed(event)
+        return super.keyPressed(keyCode, scanCode, modifiers)
     }
 
     override fun isPauseScreen(): Boolean = false

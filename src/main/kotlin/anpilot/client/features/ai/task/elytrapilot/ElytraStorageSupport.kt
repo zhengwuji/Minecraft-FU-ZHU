@@ -6,18 +6,16 @@ import anpilot.client.features.ai.utils.BaritoneHelper
 import anpilot.client.features.manager.inventory.Inventory as ANInventory
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
-import net.minecraft.core.component.DataComponents
 import net.minecraft.tags.ItemTags
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.decoration.ItemFrame
 import net.minecraft.world.entity.monster.Shulker
 import net.minecraft.world.inventory.AbstractContainerMenu
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.InventoryMenu
 import net.minecraft.world.item.BlockItem
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
-import net.minecraft.world.item.component.ItemContainerContents
 import net.minecraft.world.item.enchantment.Enchantments
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.ShulkerBoxBlock
@@ -57,7 +55,7 @@ internal object ElytraStorageSupport {
         val hotbarSlot = when (inventorySlot) {
             in 0 until ANInventory.HOTBAR_SIZE -> inventorySlot
             else -> {
-                val selected = player.inventory.selectedSlot
+                val selected = player.inventory.selected
                 if (player.containerMenu !is InventoryMenu) player.closeContainer()
                 if (!ANInventory.swapInventorySlot(inventorySlot, selected)) return false
                 selected
@@ -112,97 +110,56 @@ internal object ElytraStorageSupport {
         player.swing(InteractionHand.MAIN_HAND)
     }
 
+    fun findLootedElytraFrame(): ItemFrame? {
+        val player = ANAgent.minecraft.player ?: return null
+        val level = ANAgent.minecraft.level ?: return null
+        val pos = player.blockPosition()
+        val bounding = player.boundingBox.inflate(SHULKER_SEARCH_RADIUS)
+        return level.getEntitiesOfClass(ItemFrame::class.java, bounding) { frame ->
+            frame.getItem().isEmpty
+        }.minByOrNull { it.distanceToSqr(player) }
+    }
+
     fun resetMining() {
         miningPos = null
     }
 
-    fun supportHitResult(pos: BlockPos): BlockHitResult? {
+    fun findNearbyShulker(): Shulker? {
+        val player = ANAgent.minecraft.player ?: return null
         val level = ANAgent.minecraft.level ?: return null
-        if (!level.getBlockState(pos).canBeReplaced()) return null
-
-        val below = pos.below()
-        if (!level.getBlockState(below).isAir && !level.getBlockState(below).canBeReplaced()) {
-            return BlockHitResult(Vec3(pos.x + 0.5, pos.y.toDouble(), pos.z + 0.5), Direction.UP, below, false)
-        }
-
-        for (direction in Direction.entries) {
-            val neighbor = pos.relative(direction.opposite)
-            val state = level.getBlockState(neighbor)
-            if (state.isAir || state.canBeReplaced()) continue
-            return BlockHitResult(Vec3.atCenterOf(neighbor), direction, neighbor, false)
-        }
-        return null
+        val bounding = player.boundingBox.inflate(SHULKER_SEARCH_RADIUS)
+        return level.getEntitiesOfClass(Shulker::class.java, bounding) {
+            it.isAlive
+        }.minByOrNull { it.distanceToSqr(player) }
     }
 
-    fun findTargetFrame(elytraPos: BlockPos): ItemFrame? {
-        val level = ANAgent.minecraft.level ?: return null
-        for (entity in level.entitiesForRendering()) {
-            val frame = entity as? ItemFrame ?: continue
-            if (frame.blockPosition() == elytraPos && frame.item.`is`(Items.ELYTRA)) return frame
-        }
-        return null
+    fun findNearestShulker(pos: BlockPos): Shulker? {
+        return findNearbyShulker()
     }
 
-    fun findNearestShulker(elytraPos: BlockPos): Shulker? {
+    fun findNearbyShulkerBoxPos(): BlockPos? {
+        val player = ANAgent.minecraft.player ?: return null
         val level = ANAgent.minecraft.level ?: return null
-        var best: Shulker? = null
-        var bestDistance = Double.MAX_VALUE
-        val center = Vec3.atCenterOf(elytraPos)
-        for (entity in level.entitiesForRendering()) {
-            val shulker = entity as? Shulker ?: continue
-            if (!shulker.isAlive) continue
-            val distance = shulker.position().distanceToSqr(center)
-            if (distance <= SHULKER_SEARCH_RADIUS * SHULKER_SEARCH_RADIUS && distance < bestDistance) {
-                best = shulker
-                bestDistance = distance
+        val center = player.blockPosition()
+        val list = mutableListOf<BlockPos>()
+        for (y in -3..3) {
+            for (x in -4..4) {
+                for (z in -4..4) {
+                    val pos = center.offset(x, y, z)
+                    if (isShulkerBlock(pos)) list.add(pos)
+                }
             }
         }
-        return best
+        return list.minByOrNull { it.distSqr(center) }
     }
 
-    fun fallbackPlacePos(elytraPos: BlockPos): BlockPos? {
-        val frame = findTargetFrame(elytraPos)
-        val preferred = frame?.blockPosition()?.relative(frame.direction.opposite)
-        if (preferred != null && supportHitResult(preferred) != null) return preferred
-
-        for (direction in Direction.Plane.HORIZONTAL) {
-            val pos = elytraPos.relative(direction)
-            if (supportHitResult(pos) != null) return pos
-        }
-        return null
-    }
-
-    fun findShulkerPlacePos(playerPos: BlockPos, elytraPos: BlockPos): BlockPos {
-        val fronts = findChestFrontPositions(elytraPos)
-        if (fronts.isNotEmpty()) {
-            return fronts[0]
-        }
-        return findFallbackPlacePos(playerPos, elytraPos)
-    }
-
-    fun findEnderChestPlacePos(playerPos: BlockPos, elytraPos: BlockPos, shulkerPlacePos: BlockPos?): BlockPos {
-        val fronts = findChestFrontPositions(elytraPos)
-        if (fronts.size >= 2) {
-            if (shulkerPlacePos != null && fronts[0] == shulkerPlacePos) {
-                return fronts[1]
-            }
-            return fronts[0]
-        } else if (fronts.size == 1) {
-            if (shulkerPlacePos != null && fronts[0] == shulkerPlacePos) {
-                return findFallbackPlacePosForEnder(playerPos, elytraPos, shulkerPlacePos)
-            }
-            return fronts[0]
-        }
-        return findFallbackPlacePosForEnder(playerPos, elytraPos, shulkerPlacePos ?: BlockPos.ZERO)
-    }
-
-    private fun findEndShipChestPositions(center: BlockPos): List<BlockPos> {
+    fun findEndShipChestPositions(elytraPos: BlockPos): List<BlockPos> {
         val level = ANAgent.minecraft.level ?: return emptyList()
         val list = mutableListOf<BlockPos>()
         for (y in -2..2) {
             for (x in -4..4) {
                 for (z in -4..4) {
-                    val pos = center.offset(x, y, z)
+                    val pos = elytraPos.offset(x, y, z)
                     val state = level.getBlockState(pos)
                     if (state.`is`(Blocks.CHEST)) {
                         list.add(pos)
@@ -210,7 +167,7 @@ internal object ElytraStorageSupport {
                 }
             }
         }
-        return list.sortedBy { it.distSqr(center) }
+        return list.sortedBy { it.distSqr(elytraPos) }
     }
 
     internal fun findChestFrontPositions(elytraPos: BlockPos): List<BlockPos> {
@@ -219,73 +176,52 @@ internal object ElytraStorageSupport {
         val fronts = mutableListOf<BlockPos>()
         for (chestPos in chests) {
             val state = level.getBlockState(chestPos)
-            val facing = state.getOptionalValue(ChestBlock.FACING).orElse(null) ?: Direction.SOUTH
-            val front = chestPos.relative(facing)
-            if (level.getBlockState(front).isAir) {
-                fronts.add(front)
+            val facing = if (state.hasProperty(ChestBlock.FACING)) state.getValue(ChestBlock.FACING) else Direction.NORTH
+            val frontPos = chestPos.relative(facing)
+            if (isWalkable(frontPos)) {
+                fronts.add(frontPos)
             }
         }
-        return fronts
+        return fronts.distinct().sortedBy { it.distSqr(elytraPos) }
     }
 
-    internal fun findFallbackPlacePos(playerPos: BlockPos, elytraPos: BlockPos): BlockPos {
-        val level = ANAgent.minecraft.level ?: return playerPos.relative(Direction.NORTH)
-        val frame = findTargetFrame(elytraPos)
-        val facing = frame?.direction ?: Direction.SOUTH
-        val candidates = listOf(
-            playerPos.relative(facing.clockWise),
-            playerPos.relative(facing.counterClockWise),
-            playerPos.relative(facing)
-        )
-        for (pos in candidates) {
-            if (level.getBlockState(pos).isAir && supportHitResult(pos) != null) {
-                return pos
+    fun findNearbyPlacePos(center: BlockPos): BlockPos? {
+        val level = ANAgent.minecraft.level ?: return null
+        val list = mutableListOf<BlockPos>()
+        for (y in -1..1) {
+            for (x in -2..2) {
+                for (z in -2..2) {
+                    val pos = center.offset(x, y, z)
+                    if (isPlaceablePosition(level, pos)) list.add(pos)
+                }
             }
         }
-        for (direction in Direction.Plane.HORIZONTAL) {
-            val pos = playerPos.relative(direction)
-            if (level.getBlockState(pos).isAir && supportHitResult(pos) != null) {
-                return pos
-            }
-        }
-        return playerPos.relative(facing)
+        return list.minByOrNull { it.distSqr(center) }
     }
 
-    internal fun findFallbackPlacePosForEnder(playerPos: BlockPos, elytraPos: BlockPos, exclude: BlockPos): BlockPos {
-        val level = ANAgent.minecraft.level ?: return playerPos.relative(Direction.SOUTH)
-        val frame = findTargetFrame(elytraPos)
-        val facing = frame?.direction ?: Direction.SOUTH
-        val candidates = listOf(
-            playerPos.relative(facing.clockWise),
-            playerPos.relative(facing.counterClockWise),
-            playerPos.relative(facing)
-        )
-        for (pos in candidates) {
-            if (pos == exclude) continue
-            if (level.getBlockState(pos).isAir && supportHitResult(pos) != null) {
-                return pos
-            }
-        }
-        for (direction in Direction.Plane.HORIZONTAL) {
-            val pos = playerPos.relative(direction)
-            if (pos == exclude) continue
-            if (level.getBlockState(pos).isAir && supportHitResult(pos) != null) {
-                return pos
-            }
-        }
-        return playerPos.relative(facing)
+    private fun isPlaceablePosition(level: net.minecraft.world.level.Level, pos: BlockPos): Boolean {
+        if (!level.getBlockState(pos).isAir) return false
+        val belowState = level.getBlockState(pos.below())
+        return belowState.isSolid
     }
 
-    fun findStandPos(pos: BlockPos): BlockPos {
-        if (canStandAt(pos)) return pos
-        for (direction in Direction.Plane.HORIZONTAL) {
-            val candidate = pos.relative(direction)
-            if (canStandAt(candidate)) return candidate
+    fun supportHitResult(pos: BlockPos): BlockHitResult? {
+        val below = pos.below()
+        val level = ANAgent.minecraft.level ?: return null
+        if (level.getBlockState(below).isSolid) {
+            return BlockHitResult(Vec3.atCenterOf(below), Direction.UP, below, false)
         }
-        return ANAgent.minecraft.player?.blockPosition() ?: pos
+        for (dir in Direction.values()) {
+            if (dir == Direction.UP) continue
+            val neighbor = pos.relative(dir)
+            if (level.getBlockState(neighbor).isSolid) {
+                return BlockHitResult(Vec3.atCenterOf(neighbor), dir.opposite, neighbor, false)
+            }
+        }
+        return null
     }
 
-    private fun canStandAt(pos: BlockPos): Boolean {
+    fun isWalkable(pos: BlockPos): Boolean {
         val level = ANAgent.minecraft.level ?: return false
         return !level.getBlockState(pos.below()).getCollisionShape(level, pos.below()).isEmpty &&
                 level.getBlockState(pos).getCollisionShape(level, pos).isEmpty &&
@@ -295,7 +231,7 @@ internal object ElytraStorageSupport {
     fun clickQuickMove(slot: Int): Boolean {
         val player = ANAgent.minecraft.player ?: return false
         val gameMode = ANAgent.minecraft.gameMode ?: return false
-        gameMode.handleContainerInput(player.containerMenu.containerId, slot, 0, ContainerInput.QUICK_MOVE, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, slot, 0, ClickType.QUICK_MOVE, player)
         return true
     }
 
@@ -346,8 +282,16 @@ internal object ElytraStorageSupport {
 
     fun shulkerHasFireworks(stack: ItemStack): Boolean {
         if (!isShulkerBox(stack)) return false
-        val contents = stack.get(DataComponents.CONTAINER) ?: ItemContainerContents.EMPTY
-        return contents.nonEmptyItemCopyStream().anyMatch { it.`is`(Items.FIREWORK_ROCKET) }
+        val tag = stack.tag ?: return false
+        val blockEntityTag = tag.getCompound("BlockEntityTag")
+        if (!blockEntityTag.contains("Items", 9)) return false
+        val items = blockEntityTag.getList("Items", 10)
+        for (i in 0 until items.size) {
+            val itemCompound = items.getCompound(i)
+            val id = itemCompound.getString("id")
+            if (id == "minecraft:firework_rocket") return true
+        }
+        return false
     }
 
     fun findFireworksShulkerSlot(): Int = findInventorySlot { shulkerHasFireworks(it) }
@@ -382,8 +326,10 @@ internal object ElytraStorageSupport {
         SHULKER_SIZE - shulkerUsedSlots(stack)
 
     private fun shulkerUsedSlots(stack: ItemStack): Int {
-        val contents = stack.get(DataComponents.CONTAINER) ?: ItemContainerContents.EMPTY
-        return contents.nonEmptyItemCopyStream().count().toInt()
+        val tag = stack.tag ?: return 0
+        val blockEntityTag = tag.getCompound("BlockEntityTag")
+        if (!blockEntityTag.contains("Items", 9)) return 0
+        return blockEntityTag.getList("Items", 10).size
     }
 
     fun lookAt(agent: ANAgent, pos: Vec3) {

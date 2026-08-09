@@ -9,7 +9,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.client.player.LocalPlayer
 import net.minecraft.core.BlockPos
@@ -23,6 +23,7 @@ import net.minecraft.world.InteractionHand
 import net.minecraft.world.effect.MobEffects
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.enchantment.Enchantments
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.state.BlockState
@@ -268,7 +269,7 @@ class ANPacketMine : ANBaseModule(
                 mode.value.sendStopPackets(main.blockPos, main.direction)
             }
         } else if (autoSwitch.value == MineSwitchMode.DELAY) {
-            val oldSlot = player.inventory.selectedSlot
+            val oldSlot = player.inventory.selected
             switchToSlot(bestTool)
             mode.value.sendStopPackets(main.blockPos, main.direction)
             if (oldSlot != -1 && oldSlot != bestTool) {
@@ -306,7 +307,7 @@ class ANPacketMine : ANBaseModule(
                 mode.value.sendStopPackets(packet.blockPos, packet.direction)
             }
         } else if (autoSwitch.value == MineSwitchMode.DELAY) {
-            val oldSlot = player.inventory.selectedSlot
+            val oldSlot = player.inventory.selected
             switchToSlot(bestTool)
             mode.value.sendStopPackets(packet.blockPos, packet.direction)
             if (oldSlot != -1 && oldSlot != bestTool) {
@@ -460,10 +461,7 @@ class ANPacketMine : ANBaseModule(
             val stack = player.inventory.getItem(slot)
             if (stack.isEmpty) continue
             val destroySpeed = stack.getDestroySpeed(state)
-            val efficiency = stack.enchantments.keySet()
-                .firstOrNull { it.`is`(Enchantments.EFFICIENCY) }
-                ?.let { stack.enchantments.getLevel(it) }
-                ?: 0
+            val efficiency = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BLOCK_EFFICIENCY, stack)
             val score = destroySpeed + efficiency
             if (score > bestSpeed) {
                 bestSpeed = score
@@ -475,11 +473,11 @@ class ANPacketMine : ANBaseModule(
 
     private fun sendWithSwap(slot: Int, action: () -> Unit) {
         val player = Minecraft.getInstance().player ?: return action()
-        if (slot == -1 || slot == player.inventory.selectedSlot) {
+        if (slot == -1 || slot == player.inventory.selected) {
             action()
             return
         }
-        val oldSlot = player.inventory.selectedSlot
+        val oldSlot = player.inventory.selected
         sendPacket(ServerboundSetCarriedItemPacket(slot))
         action()
         sendPacket(ServerboundSetCarriedItemPacket(oldSlot))
@@ -488,7 +486,7 @@ class ANPacketMine : ANBaseModule(
     private fun switchToSlot(slot: Int) {
         val player = Minecraft.getInstance().player ?: return
         if (slot !in 0 until 9) return
-        player.inventory.setSelectedSlot(slot)
+        player.inventory.selected = slot
         sendPacket(ServerboundSetCarriedItemPacket(slot))
     }
 
@@ -714,11 +712,11 @@ class ANPacketMine : ANBaseModule(
         val player = Minecraft.getInstance().player ?: return
         val slot = grimBestTool(pos)
         if (slot == -1 || autoSwitch.value == MineSwitchMode.NONE) return
-        if (!grimHasSwitch && !grimSecondHasSwitch) grimOldSlot = player.inventory.selectedSlot
+        if (!grimHasSwitch && !grimSecondHasSwitch) grimOldSlot = player.inventory.selected
         when (autoSwitch.value) {
             MineSwitchMode.NONE -> Unit
             MineSwitchMode.DELAY -> {
-                player.inventory.setSelectedSlot(slot)
+                player.inventory.selected = slot
                 grimSendPacket(ServerboundSetCarriedItemPacket(slot))
             }
 
@@ -739,7 +737,7 @@ class ANPacketMine : ANBaseModule(
         when (autoSwitch.value) {
             MineSwitchMode.NONE -> Unit
             MineSwitchMode.DELAY -> {
-                player.inventory.setSelectedSlot(slot)
+                player.inventory.selected = slot
                 grimSendPacket(ServerboundSetCarriedItemPacket(slot))
             }
 
@@ -760,8 +758,7 @@ class ANPacketMine : ANBaseModule(
                 player.z,
                 player.yRot,
                 player.xRot,
-                true,
-                player.horizontalCollision
+                true
             )
         )
         player.resetFallDistance()
@@ -851,7 +848,7 @@ class ANPacketMine : ANBaseModule(
         for (slot in 0 until 9) {
             val stack = player.inventory.getItem(slot)
             if (stack.isEmpty) continue
-            val efficiency = grimEnchantmentLevel(stack, Enchantments.EFFICIENCY).toFloat()
+            val efficiency = grimEnchantmentLevel(stack, Enchantments.BLOCK_EFFICIENCY).toFloat()
             val speed = stack.getDestroySpeed(state)
             val score = speed + efficiency
             if (score > bestScore) {
@@ -872,10 +869,10 @@ class ANPacketMine : ANBaseModule(
         if (hardness == 0f) return 1.0
         val stack = if (slot == -1) ItemStack.EMPTY else player.inventory.getItem(slot)
         var speed = stack.getDestroySpeed(state)
-        val efficiency = grimEnchantmentLevel(stack, Enchantments.EFFICIENCY)
+        val efficiency = grimEnchantmentLevel(stack, Enchantments.BLOCK_EFFICIENCY)
         if (efficiency > 0 && speed > 1.0f) speed += (efficiency * efficiency + 1).toFloat()
-        player.getEffect(MobEffects.HASTE)?.let { speed *= 1.0f + (it.amplifier + 1) * 0.2f }
-        player.getEffect(MobEffects.MINING_FATIGUE)?.let {
+        player.getEffect(MobEffects.DIG_SPEED)?.let { speed *= 1.0f + (it.amplifier + 1) * 0.2f }
+        player.getEffect(MobEffects.DIG_SLOWDOWN)?.let {
             speed *= when (it.amplifier) {
                 0 -> 0.3f
                 1 -> 0.09f
@@ -883,7 +880,6 @@ class ANPacketMine : ANBaseModule(
                 else -> 0.00081f
             }
         }
-        speed *= player.getAttributeValue(Attributes.BLOCK_BREAK_SPEED).toFloat()
         val canHarvest = !state.requiresCorrectToolForDrops() || stack.isCorrectToolForDrops(state)
         val damage = speed / hardness / if (canHarvest) 30f else 100f
         return if (damage <= 0f) Double.MAX_VALUE else 1.0 / damage
@@ -951,11 +947,10 @@ class ANPacketMine : ANBaseModule(
 
     private fun grimEnchantmentLevel(
         stack: ItemStack,
-        enchantment: ResourceKey<Enchantment>
+        enchantment: net.minecraft.world.item.enchantment.Enchantment
     ): Int {
         if (stack.isEmpty) return 0
-        val holder = stack.enchantments.keySet().firstOrNull { it.`is`(enchantment) } ?: return 0
-        return stack.enchantments.getLevel(holder)
+        return EnchantmentHelper.getItemEnchantmentLevel(enchantment, stack)
     }
 
     
@@ -1073,13 +1068,11 @@ class ANPacketMine : ANBaseModule(
     private fun getBlockBreakingSpeed(player: LocalPlayer, stack: ItemStack, state: BlockState): Float {
         var speed = stack.getDestroySpeed(state)
         if (speed > 1.0f) {
-            val enchantments = stack.enchantments
-            val efficiency = enchantments.keySet().firstOrNull { it.`is`(Enchantments.EFFICIENCY) }
-                ?.let { enchantments.getLevel(it) } ?: 0
+            val efficiency = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BLOCK_EFFICIENCY, stack)
             if (efficiency > 0) speed += (efficiency * efficiency + 1).toFloat()
         }
-        player.getEffect(MobEffects.HASTE)?.let { speed *= 1.0f + (it.amplifier + 1) * 0.2f }
-        player.getEffect(MobEffects.MINING_FATIGUE)?.let {
+        player.getEffect(MobEffects.DIG_SPEED)?.let { speed *= 1.0f + (it.amplifier + 1) * 0.2f }
+        player.getEffect(MobEffects.DIG_SLOWDOWN)?.let {
             speed *= when (it.amplifier) {
                 0 -> 0.3f
                 1 -> 0.09f
@@ -1087,7 +1080,6 @@ class ANPacketMine : ANBaseModule(
                 else -> 0.00081f
             }
         }
-        speed *= player.getAttributeValue(Attributes.BLOCK_BREAK_SPEED).toFloat()
         if (!player.onGround()) speed /= 5.0f
         return speed.coerceAtLeast(0f)
     }

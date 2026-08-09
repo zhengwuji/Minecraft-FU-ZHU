@@ -73,7 +73,7 @@ class ANOreConfig(
     var scattered: Boolean = manualScattered
 
     init {
-        val bottom = Minecraft.getInstance().level?.minY ?: -64
+        val bottom = Minecraft.getInstance().level?.minBuildHeight ?: -64
         val height = Minecraft.getInstance().level?.height
             ?: Minecraft.getInstance().level?.dimensionType()?.logicalHeight()
             ?: 384
@@ -291,7 +291,6 @@ class ANOreConfig(
             register(OrePlacements.ORE_DIAMOND, 6, ANOres.DIAMOND)
             register(OrePlacements.ORE_DIAMOND_BURIED, 6, ANOres.DIAMOND)
             register(OrePlacements.ORE_DIAMOND_LARGE, 6, ANOres.DIAMOND)
-            register(OrePlacements.ORE_DIAMOND_MEDIUM, 6, ANOres.DIAMOND)
             register(OrePlacements.ORE_LAPIS, 6, ANOres.LAPIS)
             register(OrePlacements.ORE_LAPIS_BURIED, 6, ANOres.LAPIS)
             register(OrePlacements.ORE_COPPER, 6, ANOres.COPPER)

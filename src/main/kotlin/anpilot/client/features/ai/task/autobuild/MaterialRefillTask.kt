@@ -13,7 +13,7 @@ import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.ChestMenu
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.ShulkerBoxMenu
 import net.minecraft.world.item.BlockItem
 import net.minecraft.world.level.block.Block
@@ -223,20 +223,20 @@ class MaterialRefillTask(
                             }
 
                             if (discardAttempts >= 2) {
-                                mc.gameMode?.handleContainerInput(
+                                mc.gameMode?.handleInventoryMouseClick(
                                     handler.containerId,
                                     slotToFree,
                                     1, 
-                                    ContainerInput.THROW,
+                                    ClickType.THROW,
                                     p
                                 )
                                 discardAttempts = 0
                             } else {
-                                mc.gameMode?.handleContainerInput(
+                                mc.gameMode?.handleInventoryMouseClick(
                                     handler.containerId,
                                     slotToFree,
                                     0,
-                                    ContainerInput.QUICK_MOVE,
+                                    ClickType.QUICK_MOVE,
                                     p
                                 )
                             }
@@ -264,11 +264,11 @@ class MaterialRefillTask(
                     return
                 }
 
-                mc.gameMode?.handleContainerInput(
+                mc.gameMode?.handleInventoryMouseClick(
                     handler.containerId,
                     materialSlot,
                     0,
-                    ContainerInput.QUICK_MOVE,
+                    ClickType.QUICK_MOVE,
                     p
                 )
                 lastObservedCount = -1

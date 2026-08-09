@@ -64,17 +64,18 @@ class ANModuleButton(
             val showBind = isLeftShiftDown() && !hasTextInputFocused()
             if (binding) {
                 val pressingLabel = "Pressing"
-                val pressingWidth = context.textWidth(pressingLabel, 0.78f).toFloat()
-                context.text(pressingLabel, x + (width - pressingWidth) / 2, y + 5f, textColor, 0.78f)
+                val pressingWidth = context.textWidth(pressingLabel).toFloat()
+                context.text(pressingLabel, x + (width - pressingWidth) / 2, y + 5f, textColor)
             } else if (showBind) {
-                val bindWidth = context.textWidth(bindLabel, 0.78f).toFloat()
-                context.text(bindLabel, x + (width - bindWidth)/2, y + 5f, textColor, 0.78f)
-            }else {
-                context.text(module.getDisplayHudName(), x + 8f, y + 5f, textColor, 0.78f)
+                val bindWidth = context.textWidth(bindLabel).toFloat()
+                context.text(bindLabel, x + (width - bindWidth)/2, y + 5f, textColor)
+            } else {
+                context.text(module.getDisplayHudName(), x + 6f, y + 5f, textColor)
                 val dotColor = if (module.enabled) ANTheme.BtnOnDot else ANTheme.BtnDot
-                context.roundedRect(x + width - 13f, y + 7f, 6f, 6f, 3f, dotColor)
-                if (hovered && module.description.isNotBlank()) renderDescription(context)
-
+                context.roundedRect(x + width - 12f, y + 6f, 6f, 6f, 3f, dotColor)
+                if (hovered && module.description.isNotBlank()) {
+                    ANTooltipManager.setTooltip(module.description, x, y, width)
+                }
             }
         }
 
@@ -212,7 +213,7 @@ class ANModuleButton(
 
     private fun isLeftShiftDown(): Boolean {
         val minecraft = Minecraft.getInstance()
-        return InputConstants.isKeyDown(minecraft.window, InputConstants.KEY_LSHIFT)
+        return InputConstants.isKeyDown(minecraft.window.window, InputConstants.KEY_LSHIFT)
     }
 
     private fun shouldRenderSettingsLine(): Boolean {

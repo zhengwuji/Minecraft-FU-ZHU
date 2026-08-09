@@ -15,7 +15,6 @@ import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.projectile.FishingHook
 import net.minecraft.core.BlockPos
 
-
 class ANAntiKnockBack : ANBaseModule(
     name = "AntiKnockBack",
     description = "消除或自定义缩减玩家受到攻击、爆炸及鱼钩拉拽时的击退效果",
@@ -43,7 +42,6 @@ class ANAntiKnockBack : ANBaseModule(
         val player = mc.player ?: return
         if (event.entity != null && event.entity !== player) return
 
-        
         if (concealVelocity && event.x == 0.0 && event.y == 0.0 && event.z == 0.0) {
             concealVelocity = false
             return
@@ -64,7 +62,6 @@ class ANAntiKnockBack : ANBaseModule(
                 event.x = 0.0
                 event.z = 0.0
             }
-
             VelocityMode.WALL -> {
                 if (isInsideBlock(player)) {
                     event.x = 0.0
@@ -73,8 +70,6 @@ class ANAntiKnockBack : ANBaseModule(
             }
         }
     }
-
-    
 
     override fun onTick() {
         val player = mc.player ?: return
@@ -85,7 +80,7 @@ class ANAntiKnockBack : ANBaseModule(
             ServerboundMovePlayerPacket.PosRot(
                 player.x, player.y, player.z,
                 player.yRot, player.xRot,
-                player.onGround(), player.horizontalCollision
+                player.onGround()
             )
         )
         connection.send(
@@ -98,33 +93,28 @@ class ANAntiKnockBack : ANBaseModule(
         needReset = false
     }
 
-
     @ANEventHandler
     fun onPacketReceive(event: PacketEvent.Receive) {
         val player = mc.player ?: return
         val level = mc.level ?: return
         val packet = event.packet
 
-        
         if (packet is ClientboundExplodePacket) {
             if (shouldCancelExplosions()) {
                 event.cancel()
-            } else if (mode.value == VelocityMode.NORMAL && packet.playerKnockback().isPresent) {
-                val kb = packet.playerKnockback().get()
+            } else if (mode.value == VelocityMode.NORMAL) {
                 IExplosionS2CPacket::class.java.cast(packet).apply {
-                    ANPilotSetVelocityX((kb.x * horizontal.value / 100f).toFloat())
-                    ANPilotSetVelocityY((kb.y * vertical.value / 100f).toFloat())
-                    ANPilotSetVelocityZ((kb.z * horizontal.value / 100f).toFloat())
+                    ANPilotSetVelocityX((packet.knockbackX * horizontal.value / 100f))
+                    ANPilotSetVelocityY((packet.knockbackY * vertical.value / 100f))
+                    ANPilotSetVelocityZ((packet.knockbackZ * horizontal.value / 100f))
                 }
             }
         }
 
-        
         if (packet is ClientboundPlayerPositionPacket) {
             concealVelocity = true
         }
 
-        
         if (packet is ClientboundEntityEventPacket) {
             if (packet.eventId.toInt() == 31) {
                 val entity = packet.getEntity(level)
@@ -134,8 +124,6 @@ class ANAntiKnockBack : ANBaseModule(
             }
         }
     }
-
-    
 
     private fun shouldCancelExplosions(): Boolean {
         val player = mc.player ?: return true

@@ -100,7 +100,7 @@ class ANPopCount : ANBaseModule(
         nameCache[uuid] = name
 
         when (packet.eventId) {
-            EntityEvent.PROTECTED_FROM_DEATH -> handleTotemPop(mc, localPlayer, entity, uuid, name)
+            35.toByte() -> handleTotemPop(mc, localPlayer, entity, uuid, name)
             EntityEvent.DEATH -> handleDeath(mc, localPlayer, entity, uuid, name)
         }
     }
@@ -113,15 +113,12 @@ class ANPopCount : ANBaseModule(
         name: String
     ) {
         if (entity === localPlayer && !countSelf.value) return
-        if (!entity.isAlive) return
-
         val pops = (totems[uuid]?.pops ?: 0) + 1
         totems[uuid] = TotemData(System.currentTimeMillis(), pops)
-        logger.info("[PopCount] {} popped {} totem(s)", name, pops)
 
-        if (!announcePops.value) return
-        if (!shouldShowFor(localPlayer, uuid)) return
-        sendChat(mc, popMessage(name, pops))
+        if (shouldShowFor(localPlayer, uuid)) {
+            sendChat(mc, popMessage(name, pops))
+        }
     }
 
     private fun handleDeath(
@@ -131,22 +128,10 @@ class ANPopCount : ANBaseModule(
         uuid: UUID,
         name: String
     ) {
-        if (entity === localPlayer && !countSelf.value) {
-            resetPopCount(uuid)
-            return
+        val pops = totems.remove(uuid)?.pops ?: 0
+        if (pops > 0 && shouldShowFor(localPlayer, uuid)) {
+            sendChat(mc, deathMessage(name, pops))
         }
-
-        val pops = totems[uuid]?.pops ?: 0
-        if (resetOnDeath.value) {
-            resetPopCount(uuid)
-        }
-
-        if (pops <= 0) return
-
-        logger.info("[PopCount] {} died after popping {} totem(s)", name, pops)
-        if (!announceDeaths.value) return
-        if (!shouldShowFor(localPlayer, uuid)) return
-        sendChat(mc, deathMessage(name, pops))
     }
 
     private fun shouldShowFor(localPlayer: Player, uuid: UUID): Boolean {
@@ -155,7 +140,7 @@ class ANPopCount : ANBaseModule(
     }
 
     private fun sendChat(mc: Minecraft, message: Component) {
-        mc.gui.chat.addClientSystemMessage(message)
+        mc.gui.chat.addMessage(message)
     }
 
     private fun popMessage(name: String, pops: Int): Component {

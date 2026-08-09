@@ -68,7 +68,7 @@ class ANPlanMove : ANBaseModule(
             return
         }
 
-        val hasBadOmen = player.hasEffect(MobEffects.BAD_OMEN) || player.hasEffect(MobEffects.RAID_OMEN)
+        val hasBadOmen = player.hasEffect(MobEffects.BAD_OMEN)
         if (!hasBadOmen && hasOmenBottle() && !hasRaidBossBar()) {
             val found = isHandOmen(InteractionHand.MAIN_HAND) || isHandOmen(InteractionHand.OFF_HAND) || switchToOmen()
             if (!found) {
@@ -103,7 +103,7 @@ class ANPlanMove : ANBaseModule(
         drinking = false
         mc.options.keyUse.isDown = false
         if (swapBack.value && prevSlot != -1) {
-            player.inventory.selectedSlot = prevSlot
+            player.inventory.selected = prevSlot
             mc.connection?.send(ServerboundSetCarriedItemPacket(prevSlot))
             prevSlot = -1
         }
@@ -190,25 +190,14 @@ class ANPlanMove : ANBaseModule(
     }
 
     private fun hasOmenBottle(): Boolean {
-        val player = mc.player ?: return false
-        return (0 until 9).any { player.inventory.getItem(it).`is`(Items.OMINOUS_BOTTLE) }
+        return false
     }
 
     private fun isHandOmen(hand: InteractionHand): Boolean {
-        val player = mc.player ?: return false
-        val stack: ItemStack = player.getItemInHand(hand)
-        return stack.`is`(Items.OMINOUS_BOTTLE)
+        return false
     }
 
     private fun switchToOmen(): Boolean {
-        val player = mc.player ?: return false
-        for (slot in 0 until 9) {
-            if (!player.inventory.getItem(slot).`is`(Items.OMINOUS_BOTTLE)) continue
-            prevSlot = player.inventory.selectedSlot
-            player.inventory.selectedSlot = slot
-            mc.connection?.send(ServerboundSetCarriedItemPacket(slot))
-            return true
-        }
         return false
     }
 

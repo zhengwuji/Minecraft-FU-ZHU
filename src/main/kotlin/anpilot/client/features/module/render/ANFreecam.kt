@@ -6,9 +6,8 @@ import anpilot.client.features.event.impl.GameLeftEvent
 import anpilot.client.features.module.ANBaseModule
 import anpilot.client.features.setting.ANSetting
 import net.minecraft.client.Minecraft
-import net.minecraft.client.player.ClientInput
+import net.minecraft.client.player.Input
 import net.minecraft.util.Mth
-import net.minecraft.world.entity.player.Input
 import net.minecraft.world.phys.Vec2
 import net.minecraft.world.phys.Vec3
 
@@ -24,7 +23,7 @@ class ANFreecam : ANBaseModule(
         private set
 
     private var lastPosition: Vec3? = null
-    private var previousInput: ClientInput? = null
+    private var previousInput: Input? = null
     private var frozenInput: FreecamInput? = null
     private var velocity = Vec3.ZERO
 
@@ -36,7 +35,7 @@ class ANFreecam : ANBaseModule(
 
     override fun onEnable() {
         val player = mc.player ?: return
-        val partialTick = mc.deltaTracker.getGameTimeDeltaPartialTick(true)
+        val partialTick = mc.frameTime
         val start = player.getEyePosition(partialTick)
 
         position = start
@@ -53,7 +52,7 @@ class ANFreecam : ANBaseModule(
         mc.player?.let { player ->
             val input = frozenInput
             if (input != null && player.input === input) {
-                player.input = previousInput ?: ClientInput()
+                player.input = previousInput ?: Input()
             }
         }
 
@@ -149,10 +148,16 @@ class ANFreecam : ANBaseModule(
         return movement
     }
 
-    private class FreecamInput : ClientInput() {
-        override fun tick() {
-            keyPresses = Input.EMPTY
-            moveVector = Vec2.ZERO
+    private class FreecamInput : Input() {
+        override fun tick(slowDown: Boolean, f: Float) {
+            up = false
+            down = false
+            left = false
+            right = false
+            forwardImpulse = 0f
+            leftImpulse = 0f
+            jumping = false
+            shiftKeyDown = false
         }
     }
 

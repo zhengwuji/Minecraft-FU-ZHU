@@ -10,9 +10,6 @@ import anpilot.client.features.event.impl.ANMinecraftEvents
 import anpilot.client.minecraft.gui.ANClickGuiScreen
 import anpilot.client.features.manager.ANSoundManager
 import com.mojang.blaze3d.platform.InputConstants
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.ChatScreen
 import org.slf4j.LoggerFactory
@@ -32,20 +29,13 @@ object ANClientBootstrap {
             .forEach { runtime.eventBus.subscribe(it) }
         runtime.eventBus.subscribe(runtime.rotationManager)
         runtime.eventBus.subscribe(ConfigLifecycleListener)
+    }
 
-        ClientLifecycleEvents.CLIENT_STOPPING.register(ClientLifecycleEvents.ClientStopping {
-            ANConfigManager.saveCurrent()
-        })
-
-        ClientTickEvents.END_CLIENT_TICK.register(ClientTickEvents.EndTick { client ->
-            handleClickGuiBind(client)
-            ANMinecraftEvents.tick()
-            ANConfigManager.autoSaveIfNeeded()
-        })
-
-        LevelRenderEvents.COLLECT_SUBMITS.register(LevelRenderEvents.CollectSubmits { context ->
-            ANMinecraftEvents.renderWorld(context)
-        })
+    fun onClientTick(client: Minecraft) {
+        if (!ANServiceRegistry.isInitialized) return
+        handleClickGuiBind(client)
+        ANMinecraftEvents.tick()
+        ANConfigManager.autoSaveIfNeeded()
     }
 
     private fun handleClickGuiBind(client: Minecraft) {
@@ -53,7 +43,8 @@ object ANClientBootstrap {
             .filterIsInstance<ANPilotGuiEditor>()
             .firstOrNull()
         val bind = guiEditor?.getBind()
-        val isDown = bind != null && !bind.mouse && bind.key != -1 && bind.key != 0 && InputConstants.isKeyDown(client.window, bind.key)
+        val windowHandle = client.window.window
+        val isDown = bind != null && !bind.mouse && bind.key != -1 && bind.key != 0 && InputConstants.isKeyDown(windowHandle, bind.key)
         if (isDown && !clickGuiBindWasDown && client.screen !is ChatScreen) {
             toggleClickGui(client)
         }
@@ -72,12 +63,12 @@ object ANClientBootstrap {
     private object ConfigLifecycleListener {
         @ANEventHandler
         fun onGameJoined(event: GameJoinedEvent) {
-            ANConfigManager.loadOnGameJoin()
+            ANConfigManager.loadCurrent()
         }
 
         @ANEventHandler
         fun onGameLeft(event: GameLeftEvent) {
-            ANConfigManager.saveOnGameLeave()
+            ANConfigManager.saveCurrent()
         }
     }
 }

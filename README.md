@@ -1,84 +1,85 @@
-<h1 align="center"><img src="src/main/resources/assets/anpilotclient/anpilot.png" alt="ANPilotClient Icon" width="108" align="center" /> ANPilotClient</h1>
+<h1 align="center">
+  <img src="src/main/resources/assets/anpilotclient/anpilot.png" alt="ANPilotClient Icon" width="108" align="center" /><br>
+  ANPilotClient (Minecraft 1.20.1 Forge 版)
+</h1>
 
-ANPilotClient 是一个基于 Fabric 与 Kotlin 开发的 Minecraft 客户端 Mod，包含战斗、移动、渲染、HUD、玩家辅助和自动建造等模块
+<p align="center">
+  <b>强大、全面、流畅且全中文界面的 Minecraft 1.20.1 Forge 客户端辅助模组</b>
+</p>
 
-本项目主要用于个人学习、开发测试与客户端功能实验~
-使用时请遵守目标服务器规则以及相关平台条款!
+---
 
-**我将保持更新和优化，欢迎各位提出优化建议，实现一端就可满足MC玩家的功能需要！**
+## 📌 项目简介
 
-## 链接
+**ANPilotClient** 是一款基于 **Minecraft 1.20.1 Forge (Mojang 映射)** 架构精心打造的高能 Utility 模组。集合了战斗辅助、移动增强、玩家工具、全透视觉渲染、HUD 编辑器以及智能 AI 自动建造等 **50+ 项功能模块**。
 
-**B站主页**  [点击访问](https://b23.tv/QC32wv4) 
+本项目界面全面支持原生中文显示、拥有自适应分辨率矢量 GUI、高清阴影点阵字体与全新高亮高对比度 UI 主题。
 
-**个人网站**  [点击访问](AnMakerLab.cn) 
+---
 
-## 功能概览
+## ⚡ 快速使用教程
 
-| 主要功能 | 主要功能 | 主要功能 | 主要功能 |
-| --- | --- | --- | --- |
-| KillAura 击杀光环 | AutoBuild 自动建造 | AutoCrystal 自动水晶 | AutoTotem 自动图腾 |
-| AutoMine 自动挖掘 | AutoTool 自动工具 | AutoEat 自动进食 | AutoFish 自动钓鱼 |
-| AutoElytra 自动鞘翅 | AutoEnchant 自动附魔 | BaseFinder 基地搜索 | ElytraPilotPlus 鞘翅飞行 |
-| FlyTo 坐标飞行 | XRay 矿物透视 | ESP 实体透视 | BlockESP 方块透视 |
-| StorageESP 容器透视 | NameTags 名称标签 | Freecam 灵魂出窍 | ScaffoldPlus 自动搭路 |
+### 1. 安装方法
+1. 确保您的 Minecraft 游戏客户端已安装 **Forge 1.20.1** (推荐 Forge 47.1.3 及以上版本)。
+2. 从构建输出或 Release 中获取模组文件：[ANPilotClient-1.2.8-forge.jar](file:///g:/Personal/Desktop/test/%E6%88%91%E7%9A%84%E4%B8%96%E7%95%8C1.20.1%E8%BE%85%E5%8A%A9/ANPilotClient-1.2.8-forge.jar)。
+3. 将 `.jar` 文件直接放入您客户端根目录下的 `.minecraft/mods` 文件夹中。
+4. 启动游戏即可成功加载！
 
-## GUI 预览
+### 2. 界面呼出与快捷键
+* **呼出主界面 (ClickGUI)**：进入游戏后，按下键盘上的 **`F4`** 键即可打开/关闭全中文辅助管理界面。
+* **修改绑键**：在主界面中**中键点击**任意功能模块，按下键盘目标按键即可自定义绑定快捷键。
+* **折叠/展开模块设置**：在主界面中**右键点击**模块按钮，即可展开该模块的具体参数调节面板（如数值滑块、颜色选择器、模式切换等）。
+* **悬浮功能说明**：将鼠标放置于任意模块上方，界面最顶层会自动弹出清晰遮罩的**功能说明提示框**。
 
-| 主界面 | HUD界面                                                                                           |
-| --- |-------------------------------------------------------------------------------------------------|
-| ![ANPilotClient 主界面](src/main/resources/assets/anpilotclient/屏幕截图%202026-07-28%20220913.png) | ![ANPilotClient GUI 界面](src/main/resources/assets/anpilotclient/屏幕截图%202026-07-28%20221103.png) |
+---
 
-## 环境要求
+## 🔥 核心功能清单 (50+ 实用模块)
 
-- Minecraft `26.1.2`
-- Java `25` 或更高版本
-- Fabric Loader `0.19.2` 或更高版本
-- Fabric API
-- Fabric Language Kotlin
+| 功能分类 | 包含模块与作用说明 |
+| :--- | :--- |
+| **⚔️ 战斗 (Combat)** | **自动水晶 (AutoCrystal)**、**杀手光环 (KillAura)**、**重生锚光环 (AnchorAura)**、**自动图腾 (AutoTotem)**、**更多击退 (Knockback)**、**弓箭预判 (BowAimbot)**、**自动挂床 (AutoBed)**、**脚部困人 (FeetPlace)**、**自动经验瓶 (AutoXP)**、**图腾计数 (PopCount)** 等 |
+| **🏃 移动 (Movement)** | **反蜘蛛网 (AntiWeb)**、**界面移动 (GuiMove)**、**反击退 (Velocity)**、**防减速 (NoSlow)**、**发包飞行 (PacketFly)**、**速度爆发 (Boost)**、**自动跑酷 (Parkour)**、**自动跟随 (AutoFollow)**、**穿墙 (Phase)**、**安全行走 (SafeWalk)** 等 |
+| **🛠️ 玩家与工具 (Player & Tool)** | **死亡幽灵 (DeathGhost)**、**自动进食 (AutoEat)**、**自动工具 (AutoTool)**、**自动装备 (AutoArmour)**、**快速挖矿 (PacketMine)**、**自动搭路 (ScaffoldPlus)**、**空中放置 (AirPlace)**、**自动附魔 (AutoEnchant)**、**自动清理背包 (AutoDrop)**、**自动抢箱子 (LootStealer)** 等 |
+| **👁️ 渲染 (Render)** | **方块透视 (BlockESP)**、**实体透视 (ESP)**、**容器透视 (StorageESP)**、**名称标签 (NameTags)**、**灵魂出窍 (Freecam)**、**自由观察 (FreeLook)**、**矿物透视 (XRay)**、**登出点标记 (LogOutPoints)**、**下界隧道ESP (TunnelESP)**、**史莱姆区块 (SlimeChunks)** 等 |
+| **🤖 自动化与AI (Bot & AI)** | **自动建造 (AutoBuild)**、**自动农场 (AutoFarm)**、**自动钓鱼 (AutoFish)**、**聊天工具 (ChatUtils)**、**基地扫描 (BaseFinder)**、**假人生成 (FakePlayer)**、**自动防挂机 (AntiAFK)**、**自动Log出服 (AutoLog)** 等 |
+| **⚙️ 客户端设置 (ANPilot)** | **界面编辑器 (ClickGUI)**、**HUD 编辑器 (HudEditor)**、**主题管理 (PilotTheme)**、**配置保存/加载 (PilotConfig)**、**好友系统 (PilotFriend)** 等 |
 
-## 构建
+---
 
-Windows:
+## 💻 源码编译指南
 
+环境要求：
+* **JDK 17** 或更高版本
+* **Gradle 8.0+** (建议使用项目自带的 `gradlew` 脚本)
+
+### 编译步骤
+
+在项目根目录下打开终端，执行以下构建命令：
+
+**Windows (PowerShell)**:
 ```powershell
+$env:JAVA_HOME='您的JDK17路径'
 .\gradlew.bat build
 ```
 
-Linux / macOS:
-
+**Linux / macOS (Bash)**:
 ```bash
+export JAVA_HOME=/path/to/jdk-17
 ./gradlew build
 ```
 
-## 开发
+编译完成后，打包好的文件位于：
+`build/libs/anpilotclient-1.2.8.jar`
 
-推荐使用 IntelliJ IDEA 打开项目，并等待 Gradle 同步完成。
+---
 
-常用命令:
+## 📜 许可证
 
-```powershell
-.\gradlew.bat compileKotlin
-.\gradlew.bat runClient
-```
+本项目依据 **GNU General Public License v3.0 (GPL-3.0)** 开源，详见项目 `LICENSE` 文件。
 
-## 依赖
+---
 
-项目主要依赖:
-- Fabric Language Kotlin
-- Sodium
-- Baritone API
+## ⚠️ 免责声明
 
-## 许可证
-
-本项目使用 GNU General Public License v3.0 only 授权，详见 `LICENSE`。
-
-如果你分发本项目的修改版本或基于本项目的衍生作品，需要按照 GPL-3.0-only 的要求一并提供对应源码。
-
-## 打赏支持
-
-如果这个项目对你有帮助，可以支持一哈作者，awa~
-
-| 收款码 | B站充电 |
-| --- | --- |
-| <img src="src/main/resources/assets/anpilotclient/IMG_1542(20260728-230408).JPG" alt="打赏收款码" width="260" /> | [点击前往 B站主页充电](https://b23.tv/QC32wv4) |
+* 本项目仅供个人学习、编程技术研究与客户端开发实验使用。
+* 请勿在禁止辅助模组的公共服务器中使用。如因违规使用导致封号等后果，由使用者自行承担。

@@ -8,6 +8,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.font.ANFontRenderer
 import anpilot.client.renderer.render.ANRender2DEngine
+import anpilot.client.compat.projectPointToScreen
 import net.minecraft.client.CameraType
 import net.minecraft.client.Minecraft
 import net.minecraft.world.entity.EquipmentSlot
@@ -53,7 +54,6 @@ class ANNameTags : ANBaseModule(
             val uiScale = rawScale.coerceIn(minScale.value, maxScale.value)
             val scaleFactor = uiScale / 0.5f
 
-            
             val worldPos = Vec3(
                 player.xOld + (player.x - player.xOld) * tickDelta,
                 player.yOld + (player.y - player.yOld) * tickDelta + player.bbHeight,
@@ -72,16 +72,13 @@ class ANNameTags : ANBaseModule(
             val finalString = "$ping $playerName $health"
             val nameWidth = customFont.width(finalString, uiScale)
 
-            
             val rectWidth = nameWidth + 10f * scaleFactor
             val rectHeight = panelHeight * scaleFactor
             val rectX = x - rectWidth / 2f
-            
-            
+
             val gap = (2f + height.value * 2f) * scaleFactor
             val rectY = y - gap - rectHeight
 
-            
             ANRender2DEngine.borderedRoundedRect(
                 context,
                 rectX,
@@ -94,7 +91,6 @@ class ANNameTags : ANBaseModule(
                 plateBorder.value.getColorRGB().rgb
             )
 
-            
             armor[0] = player.offhandItem
             armor[1] = player.getItemBySlot(EquipmentSlot.HEAD)
             armor[2] = player.getItemBySlot(EquipmentSlot.CHEST)
@@ -107,15 +103,14 @@ class ANNameTags : ANBaseModule(
                 val itemStack = armor[position] ?: continue
                 if (itemStack.isEmpty) continue
                 val armorX = x + (position * 18f * uiScale) - (18f * uiScale * 6) / 2f
-                context.pose().pushMatrix()
-                context.pose().translate(armorX, armorY)
-                context.pose().scale(uiScale, uiScale)
-                context.item(itemStack.copy(), 0, 0)
-                context.itemDecorations(minecraft.font, itemStack, 0, 0)
-                context.pose().popMatrix()
+                context.pose().pushPose()
+                context.pose().translate(armorX, armorY, 0f)
+                context.pose().scale(uiScale, uiScale, 1f)
+                context.renderItem(itemStack.copy(), 0, 0)
+                context.renderItemDecorations(minecraft.font, itemStack, 0, 0)
+                context.pose().popPose()
             }
 
-            
             val textX = x - nameWidth / 2f
             val textY = rectY + 2f * scaleFactor
 
@@ -126,14 +121,6 @@ class ANNameTags : ANBaseModule(
                 textX + customFont.width("$ping ", uiScale),
                 textY,
                 textColor.value.getColorRGB().rgb,
-                uiScale
-            )
-            customFont.draw(
-                context,
-                health.toString(),
-                textX + nameWidth - customFont.width(health.toString(), uiScale),
-                textY,
-                infoColor.value.getColorRGB().rgb,
                 uiScale
             )
         }

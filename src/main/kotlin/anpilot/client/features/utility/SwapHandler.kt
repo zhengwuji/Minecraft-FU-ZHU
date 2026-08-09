@@ -8,7 +8,7 @@ class SwapHandler {
     private var previousSlot = -1
 
     fun startSwap(slot: Int) {
-        previousSlot = mc.player?.inventory?.selectedSlot ?: 0
+        previousSlot = mc.player?.inventory?.selected ?: 0
         mc.player?.connection?.send(ServerboundSetCarriedItemPacket(slot))
     }
 

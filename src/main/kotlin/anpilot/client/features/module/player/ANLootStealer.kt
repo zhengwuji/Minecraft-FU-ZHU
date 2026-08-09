@@ -6,7 +6,7 @@ import anpilot.client.features.event.ANEventHandler
 import anpilot.client.features.event.impl.ANTickEvent
 import anpilot.client.features.module.ANBaseModule
 import net.minecraft.client.gui.screens.inventory.ContainerScreen
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.item.ItemStack
 import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ItemSelectSetting
@@ -35,11 +35,11 @@ class ANLootStealer : ANBaseModule(
             var stoleSomething = false
             for (slot in containerSlots) {
                 if (isHighValue(slot.item)) {
-                    mc.gameMode?.handleContainerInput(
+                    mc.gameMode?.handleInventoryMouseClick(
                         container.containerId,
                         slot.index,
                         0,
-                        ContainerInput.QUICK_MOVE,
+                        ClickType.QUICK_MOVE,
                         mc.player!!
                     )
                     stoleSomething = true

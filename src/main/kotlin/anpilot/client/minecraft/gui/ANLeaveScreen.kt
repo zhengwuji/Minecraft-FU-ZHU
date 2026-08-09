@@ -3,35 +3,33 @@ package anpilot.client.minecraft.gui
 import anpilot.client.features.gui.ANLeaveGuiState
 import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.input.KeyEvent
-import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.network.chat.Component
-import net.minecraft.resources.Identifier
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.item.ItemStack
 import java.awt.Color
 
 class ANLeaveScreen : Screen(Component.literal("ANPilot Leave Screen")) {
     private lateinit var gui: MinecraftGuiRenderContext
 
-    override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, deltaTicks: Float) {
-        gui = MinecraftGuiRenderContext(context, font, width, height)
+    override fun render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {
+        gui = MinecraftGuiRenderContext(graphics, font, width, height)
 
         val panelWidth = 518f
         val panelHeight = 200f
         val panelX = (width - panelWidth) / 2f
         val panelY = (height - panelHeight) / 2f
-        val layout = layout(panelX+10, panelY)
+        val layout = layout(panelX + 10, panelY)
 
         drawPanel(panelX, panelY, panelWidth, panelHeight)
         drawHeader(panelX, panelY, panelWidth)
         drawHealthBar(layout)
         drawPlayerInfo(layout, mouseX, mouseY)
-        drawInventory(layout, context)
-        drawNearbyPlayers(layout, context)
+        drawInventory(layout, graphics)
+        drawNearbyPlayers(layout, graphics)
 
-        super.extractRenderState(context, mouseX, mouseY, deltaTicks)
+        super.render(graphics, mouseX, mouseY, partialTick)
     }
 
     private fun drawPanel(x: Float, y: Float, width: Float, height: Float) {
@@ -69,8 +67,7 @@ class ANLeaveScreen : Screen(Component.literal("ANPilot Leave Screen")) {
             Color(0xCC28D3EA.toInt(), true)
         )
         val healthPercent = (ANLeaveGuiState.health / ANLeaveGuiState.maxHealth.coerceAtLeast(1f)).coerceIn(0f, 1f)
-        gui.borderedRoundedRect(healthX, layout.healthY, healthWidth * healthPercent, layout.healthHeight, 6f, 1f,Color(0xFFE9435B.toInt(), true), Color(0x00000000.toInt(), true)
-        )
+        gui.borderedRoundedRect(healthX, layout.healthY, healthWidth * healthPercent, layout.healthHeight, 6f, 1f, Color(0xFFE9435B.toInt(), true), Color(0x00000000.toInt(), true))
     }
 
     private fun drawPlayerInfo(layout: Layout, mouseX: Int, mouseY: Int) {
@@ -105,7 +102,7 @@ class ANLeaveScreen : Screen(Component.literal("ANPilot Leave Screen")) {
         gui.text("World: ${ANLeaveGuiState.dimension.ifBlank { "Unknown" }}", textX, textY + 38f, 0xFFEAF7FF.toInt(), 0.85f)
     }
 
-    private fun drawInventory(layout: Layout, context: GuiGraphicsExtractor) {
+    private fun drawInventory(layout: Layout, graphics: GuiGraphics) {
         drawInset(layout.inventoryX, layout.inventoryY, layout.inventoryWidth, layout.inventoryHeight, 14f)
         drawInset(layout.inventoryX, layout.hotbarY, layout.inventoryWidth, layout.hotbarHeight, 14f)
 
@@ -120,31 +117,31 @@ class ANLeaveScreen : Screen(Component.literal("ANPilot Leave Screen")) {
         for (row in 0 until rows) {
             for (col in 0 until cols) {
                 val sourceSlot = row * cols + col + 9
-                drawItem(context, itemAt(sourceSlot), startX + col * slotSize, startY + row * slotSize, itemSize)
+                drawItem(graphics, itemAt(sourceSlot), startX + col * slotSize, startY + row * slotSize, itemSize)
             }
         }
 
         val hotbarX = layout.inventoryX + padding
         val hotbarItemsY = layout.hotbarY + padding
         for (col in 0 until cols) {
-            drawItem(context, itemAt(col), hotbarX + col * slotSize, hotbarItemsY, itemSize)
+            drawItem(graphics, itemAt(col), hotbarX + col * slotSize, hotbarItemsY, itemSize)
         }
 
         val armorY = hotbarItemsY + slotSize
         ANLeaveGuiState.armor.take(4).forEachIndexed { index, stack ->
-            drawItem(context, stack, hotbarX + index * slotSize, armorY, itemSize)
+            drawItem(graphics, stack, hotbarX + index * slotSize, armorY, itemSize)
         }
     }
 
-    private fun drawNearbyPlayers(layout: Layout, context: GuiGraphicsExtractor) {
+    private fun drawNearbyPlayers(layout: Layout, graphics: GuiGraphics) {
         drawInset(layout.infoX, layout.nearbyY, layout.infoWidth, layout.nearbyHeight, 12f)
 
         ANLeaveGuiState.nearbyPlayers.take(5).forEachIndexed { index, player ->
             val rowY = layout.nearbyY + 5f + index * 15f
             player.skin?.let { skin ->
-                drawHead(context, skin, layout.infoX + 10f, rowY, 10f)
+                drawHead(graphics, skin, layout.infoX + 10f, rowY, 10f)
             }
-            gui.text(player.name, layout.infoX + 28f, rowY , 0xFF00FFFF.toInt(), 0.85f)
+            gui.text(player.name, layout.infoX + 28f, rowY, 0xFF00FFFF.toInt(), 0.85f)
         }
     }
 
@@ -161,25 +158,25 @@ class ANLeaveScreen : Screen(Component.literal("ANPilot Leave Screen")) {
         )
     }
 
-    private fun drawItem(context: GuiGraphicsExtractor, stack: ItemStack, x: Float, y: Float, size: Float = 16f) {
+    private fun drawItem(graphics: GuiGraphics, stack: ItemStack, x: Float, y: Float, size: Float = 16f) {
         if (stack.isEmpty) return
         val itemX = x.toInt()
         val itemY = y.toInt()
-        context.pose().pushMatrix()
+        graphics.pose().pushPose()
         val scale = size / 16f
-        context.pose().translate(itemX.toFloat(), itemY.toFloat())
-        context.pose().scale(scale, scale)
-        context.item(stack.copy(), 0, 0)
-        context.itemDecorations(Minecraft.getInstance().font, stack, 0, 0)
-        context.pose().popMatrix()
+        graphics.pose().translate(itemX.toFloat(), itemY.toFloat(), 0f)
+        graphics.pose().scale(scale, scale, 1f)
+        graphics.renderItem(stack.copy(), 0, 0)
+        graphics.renderItemDecorations(Minecraft.getInstance().font, stack, 0, 0)
+        graphics.pose().popPose()
     }
 
-    private fun drawHead(context: GuiGraphicsExtractor, texture: Identifier, x: Float, y: Float, size: Float) {
+    private fun drawHead(graphics: GuiGraphics, texture: ResourceLocation, x: Float, y: Float, size: Float) {
         val drawSize = size.toInt()
         val drawX = x.toInt()
         val drawY = y.toInt()
-        context.blit(RenderPipelines.GUI_TEXTURED, texture, drawX, drawY, 8f, 8f, drawSize, drawSize, 8, 8, 64, 64)
-        context.blit(RenderPipelines.GUI_TEXTURED, texture, drawX, drawY, 40f, 8f, drawSize, drawSize, 8, 8, 64, 64)
+        graphics.blit(texture, drawX, drawY, 8f, 8f, drawSize, drawSize, 64, 64)
+        graphics.blit(texture, drawX, drawY, 40f, 8f, drawSize, drawSize, 64, 64)
     }
 
     private fun layout(x: Float, y: Float): Layout {
@@ -200,9 +197,9 @@ class ANLeaveScreen : Screen(Component.literal("ANPilot Leave Screen")) {
         val infoHeight = 60f
         val nearbyHeight = 78f
         val playerX = x + 5f
-        val infoX = playerX + playerWidth + 2*gap
-        val inventoryX = infoX + infoWidth + 2*gap
-        val inventoryY = healthY+healthHeight+gap
+        val infoX = playerX + playerWidth + 2 * gap
+        val inventoryX = infoX + infoWidth + 2 * gap
+        val inventoryY = healthY + healthHeight + gap
         val hotbarY = inventoryY + inventoryHeight + gap
         val nearbyY = contentY + infoHeight + gap
         return Layout(
@@ -237,12 +234,12 @@ class ANLeaveScreen : Screen(Component.literal("ANPilot Leave Screen")) {
         return ANLeaveGuiState.inventory.getOrNull(slot) ?: ItemStack.EMPTY
     }
 
-    override fun keyPressed(event: KeyEvent): Boolean {
-        if (event.key() == InputConstants.KEY_ESCAPE) {
+    override fun keyPressed(keyCode: Int, scanCode: Int, modifiers: Int): Boolean {
+        if (keyCode == InputConstants.KEY_ESCAPE) {
             onClose()
             return true
         }
-        return super.keyPressed(event)
+        return super.keyPressed(keyCode, scanCode, modifiers)
     }
 
     override fun isPauseScreen(): Boolean = false

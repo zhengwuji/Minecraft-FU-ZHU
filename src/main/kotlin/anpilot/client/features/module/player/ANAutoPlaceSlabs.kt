@@ -8,7 +8,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.world.InteractionHand
@@ -122,7 +122,7 @@ class ANAutoPlaceSlabs : ANBaseModule(
         }
 
         if (targets.isEmpty()) return
-        val swapped = if (slot == player.inventory.selectedSlot) true else Inventory.swap(slot, swapBack = true)
+        val swapped = if (slot == player.inventory.selected) true else Inventory.swap(slot, swapBack = true)
         if (!swapped) return
 
         var placedAny = false
@@ -132,7 +132,7 @@ class ANAutoPlaceSlabs : ANBaseModule(
                 placedAny = true
             }
         } finally {
-            if (slot != player.inventory.selectedSlot) Inventory.swapBack()
+            if (slot != player.inventory.selected) Inventory.swapBack()
             if (placedAny) {
                 ANServiceRegistry.runtime.rotationManager.resetSilentRotation()
             }

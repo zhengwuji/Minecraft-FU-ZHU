@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+issueTrackerURL="https://github.com/AN-G007/ANPilotClient/issues"
+
+[[mods]]
+modId="anpilotclient"
+version="1.2.8"
+displayName="ANPilotClient"
+description="ANPilotClient Utility Mod For Forge 1.20.1"
+authors="AN-G!"
+logoFile="assets/anpilotclient/icon.png"
+
+[[dependencies.anpilotclient]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47.0.0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.anpilotclient]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.20.2)"
+    ordering="NONE"
+    side="BOTH"

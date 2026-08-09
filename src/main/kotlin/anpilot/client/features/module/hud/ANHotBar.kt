@@ -29,7 +29,7 @@ class ANHotBar : ANDraggableHudModule("HotBar", "提供现代化圆角自定义�
 
         drawSlot(
             context,
-            slotStartX + scaled(SLOT_SPACING) * player.inventory.selectedSlot,
+            slotStartX + scaled(SLOT_SPACING) * player.inventory.selected,
             slotY,
             ANTheme.Transparent,
             HudColors.text2,

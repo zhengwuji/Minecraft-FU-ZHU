@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ClientLevel.class)
 public abstract class ANClientWorldMixin {
     @Inject(method = "addEntity", at = @At("RETURN"), cancellable = true)
-    private void addEntityHookPost(Entity entity, CallbackInfo ci) {
+    private void addEntityHookPost(int id, Entity entity, CallbackInfo ci) {
         if (!ANServiceRegistry.INSTANCE.isInitialized()) return;
         EventEntitySpawnPost event = new EventEntitySpawnPost(entity);
         ANServiceRegistry.INSTANCE.getRuntime().getEventBus().post(event);

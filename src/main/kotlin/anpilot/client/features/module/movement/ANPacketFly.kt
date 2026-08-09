@@ -73,12 +73,12 @@ class ANPacketFly : ANBaseModule(
                 ServerboundMovePlayerPacket.PosRot(
                     packet.getX(0.0), newY, packet.getZ(0.0),
                     packet.getYRot(0f), packet.getXRot(0f),
-                    packet.isOnGround, packet.horizontalCollision()
+                    packet.isOnGround
                 )
             } else {
                 ServerboundMovePlayerPacket.Pos(
                     packet.getX(0.0), newY, packet.getZ(0.0),
-                    packet.isOnGround, packet.horizontalCollision()
+                    packet.isOnGround
                 )
             }
         } else {
@@ -106,12 +106,12 @@ class ANPacketFly : ANBaseModule(
                 ServerboundMovePlayerPacket.PosRot(
                     player.x, player.y, player.z,
                     packet.getYRot(0f), packet.getXRot(0f),
-                    packet.isOnGround, packet.horizontalCollision()
+                    packet.isOnGround
                 )
             } else {
                 ServerboundMovePlayerPacket.Pos(
                     player.x, player.y, player.z,
-                    packet.isOnGround, packet.horizontalCollision()
+                    packet.isOnGround
                 )
             }
             modifiedPacket = antiKickPacket(fullPacket, player.y)
@@ -135,8 +135,8 @@ class ANPacketFly : ANBaseModule(
                     val adjustedBox = box.move(0.0, -0.4, 0.0)
                     val blockCollisions = Streams.stream(level.getBlockCollisions(player, adjustedBox))
                     if (!blockCollisions.findAny().isPresent) {
-                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, player.y - 0.4, player.z, player.onGround(), player.horizontalCollision))
-                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, player.y, player.z, player.onGround(), player.horizontalCollision))
+                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, player.y - 0.4, player.z, player.onGround()))
+                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, player.y, player.z, player.onGround()))
                     }
                 }
                 AntiKickMode.GrimOld -> {
@@ -148,18 +148,18 @@ class ANPacketFly : ANBaseModule(
                         val groundExtra = ground + 0.1
                         var posY = player.y
                         while (posY > groundExtra) {
-                            mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, posY, player.z, true, player.horizontalCollision))
+                            mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, posY, player.z, true))
                             if (posY - 4.0 < groundExtra) break
                             posY -= 4.0
                         }
-                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, groundExtra, player.z, true, player.horizontalCollision))
+                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, groundExtra, player.z, true))
                         posY = groundExtra
                         while (posY < player.y) {
-                            mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, posY, player.z, player.onGround(), player.horizontalCollision))
+                            mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, posY, player.z, player.onGround()))
                             if (posY + 4.0 > player.y) break
                             posY += 4.0
                         }
-                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, player.y, player.z, player.onGround(), player.horizontalCollision))
+                        mc.connection!!.send(ServerboundMovePlayerPacket.Pos(player.x, player.y, player.z, player.onGround()))
                     }
                 }
                 else -> {}

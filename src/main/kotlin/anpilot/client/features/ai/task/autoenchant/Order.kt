@@ -26,7 +26,6 @@ object Order {
         Items.DIAMOND_AXE, Items.NETHERITE_AXE -> axe()
         Items.DIAMOND_SWORD, Items.NETHERITE_SWORD -> sword()
         Items.ELYTRA -> elytra()
-        Items.DIAMOND_SPEAR, Items.NETHERITE_SPEAR -> spear()
         else -> fallback()
     }
 

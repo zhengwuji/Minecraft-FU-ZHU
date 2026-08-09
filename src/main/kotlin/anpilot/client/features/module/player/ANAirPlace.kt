@@ -7,7 +7,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.item.BlockItem

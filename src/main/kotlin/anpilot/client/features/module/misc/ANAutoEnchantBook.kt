@@ -9,21 +9,18 @@ import anpilot.client.features.module.player.ANPacketMine
 import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.manager.rotation.Rotation
 import anpilot.client.features.manager.rotation.RotationUtil
-import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.inventory.MerchantScreen
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
-import net.minecraft.core.component.DataComponents
-import net.minecraft.resources.ResourceKey
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.Entity
-import net.minecraft.world.entity.npc.villager.Villager
-import net.minecraft.world.entity.npc.villager.VillagerProfession
+import net.minecraft.world.entity.npc.Villager
+import net.minecraft.world.entity.npc.VillagerProfession
 import net.minecraft.world.inventory.MerchantMenu
 import net.minecraft.world.item.Items
 import net.minecraft.world.item.enchantment.Enchantment
+import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.enchantment.Enchantments
-import net.minecraft.world.item.enchantment.ItemEnchantments
 import net.minecraft.world.item.trading.MerchantOffer
 import net.minecraft.world.level.entity.EntityTypeTest
 import net.minecraft.world.phys.AABB
@@ -143,7 +140,7 @@ class ANAutoEnchantBook : ANBaseModule(
                 placedOnce = false
                 val target = villager ?: return disableWithMessage("没有村民")
 
-                val rotations = RotationUtil.getRotationsTo(player.eyePosition, target.eyePosition)
+                val rotations = RotationUtil.getRotationsTo(player.getEyePosition(1.0f), target.getEyePosition(1.0f))
                 ANServiceRegistry.runtime.rotationManager.setSilentRotation(Rotation(rotations[0], rotations[1]))
 
                 when {
@@ -167,7 +164,7 @@ class ANAutoEnchantBook : ANBaseModule(
                 val target = villager ?: return resetToFind()
                 val tablePos = craftTable ?: return resetToFind()
 
-                val rotations = RotationUtil.getRotationsTo(player.eyePosition, Vec3.atCenterOf(tablePos))
+                val rotations = RotationUtil.getRotationsTo(player.getEyePosition(1.0f), Vec3.atCenterOf(tablePos))
                 ANServiceRegistry.runtime.rotationManager.setSilentRotation(Rotation(rotations[0], rotations[1]))
 
                 val blockState = level.getBlockState(tablePos)
@@ -195,7 +192,7 @@ class ANAutoEnchantBook : ANBaseModule(
                 if (!placedOnce) {
                     val hit = supportHitResult(tablePos)
                     if (hit != null) {
-                        val rotations = RotationUtil.getRotationsTo(player.eyePosition, hit.location)
+                        val rotations = RotationUtil.getRotationsTo(player.getEyePosition(1.0f), hit.location)
                         ANServiceRegistry.runtime.rotationManager.setSilentRotation(Rotation(rotations[0], rotations[1]))
                     }
                     placedOnce = placeLectern(tablePos, lecternSlot)
@@ -231,22 +228,20 @@ class ANAutoEnchantBook : ANBaseModule(
         for (offer in offers) {
             val result = offer.result
             if (!result.`is`(Items.ENCHANTED_BOOK)) continue
-            val enchantments = result.get(DataComponents.STORED_ENCHANTMENTS) ?: continue
+            val enchantments = EnchantmentHelper.getEnchantments(result)
             val match = findMatchingEnchant(enchantments)
             if (match != null) return match
         }
         return null
     }
 
-    private fun findMatchingEnchant(enchantments: ItemEnchantments): TargetEnchant? {
-        for (entry in enchantments.entrySet()) {
-            val enchantment = entry.key
-            val level = entry.intValue
+    private fun findMatchingEnchant(enchantments: Map<Enchantment, Int>): TargetEnchant? {
+        for ((enchantment, level) in enchantments) {
             for (target in targetEnchants()) {
                 if (!target.setting.value) continue
-                if (!enchantment.`is`(target.key)) continue
-                if (target.level != null && level != target.level) continue
-                return target
+                if (enchantment == target.key) {
+                    if (target.level == null || level == target.level) return target
+                }
             }
         }
         return null
@@ -254,7 +249,7 @@ class ANAutoEnchantBook : ANBaseModule(
 
     private fun placeLectern(pos: BlockPos, slot: Int): Boolean {
         val player = mc.player ?: return false
-        val swapped = if (slot == player.inventory.selectedSlot) true else Inventory.swap(slot, swapBack = true)
+        val swapped = if (slot == player.inventory.selected) true else Inventory.swap(slot, swapBack = true)
         if (!swapped) return false
 
         return try {
@@ -263,7 +258,7 @@ class ANAutoEnchantBook : ANBaseModule(
             player.swing(InteractionHand.MAIN_HAND)
             true
         } finally {
-            if (slot != player.inventory.selectedSlot) Inventory.swapBack()
+            if (slot != player.inventory.selected) Inventory.swapBack()
         }
     }
 
@@ -287,7 +282,7 @@ class ANAutoEnchantBook : ANBaseModule(
 
     private fun findLecternSlot(): Int {
         val player = mc.player ?: return Inventory.INVALID_SLOT
-        if (player.mainHandItem.`is`(Items.LECTERN)) return player.inventory.selectedSlot
+        if (player.mainHandItem.`is`(Items.LECTERN)) return player.inventory.selected
         for (slot in 0 until Inventory.HOTBAR_SIZE) {
             if (player.inventory.getItem(slot).`is`(Items.LECTERN)) return slot
         }
@@ -310,7 +305,7 @@ class ANAutoEnchantBook : ANBaseModule(
     private fun interactVillager(villager: Villager) {
         val player = mc.player ?: return
         val gameMode = mc.gameMode ?: return
-        gameMode.interact(player, villager, EntityHitResult(villager), InteractionHand.MAIN_HAND)
+        gameMode.interact(player, villager, InteractionHand.MAIN_HAND)
         player.swing(InteractionHand.MAIN_HAND)
     }
 
@@ -330,11 +325,9 @@ class ANAutoEnchantBook : ANBaseModule(
             .minByOrNull { player.distanceToSqr(it) }
     }
 
-
-
     private fun getCraftingPos(entity: Entity): BlockPos {
         val player = mc.player ?: return entity.blockPosition()
-        val playerEyes = player.eyePosition
+        val playerEyes = player.getEyePosition(1.0f)
         val center = entity.boundingBox.center
         var dx = playerEyes.x - center.x
         var dz = playerEyes.z - center.z
@@ -346,13 +339,13 @@ class ANAutoEnchantBook : ANBaseModule(
     }
 
     private fun hasProfession(entity: Entity): Boolean {
-        val profession = (entity as? Villager)?.villagerData?.profession() ?: return false
-        return !profession.`is`(VillagerProfession.NONE) && !profession.`is`(VillagerProfession.NITWIT)
+        val profession = (entity as? Villager)?.villagerData?.profession ?: return false
+        return profession != VillagerProfession.NONE && profession != VillagerProfession.NITWIT
     }
 
     private fun isLibrarian(entity: Entity): Boolean {
-        val profession = (entity as? Villager)?.villagerData?.profession() ?: return false
-        return profession.`is`(VillagerProfession.LIBRARIAN)
+        val profession = (entity as? Villager)?.villagerData?.profession ?: return false
+        return profession == VillagerProfession.LIBRARIAN
     }
 
     private fun resetToFind() {
@@ -370,24 +363,22 @@ class ANAutoEnchantBook : ANBaseModule(
         disable(message)
     }
 
-
-
     private fun targetEnchants(): List<TargetEnchant> = listOf(
         TargetEnchant(Enchantments.MENDING, null, mending, "经验修补"),
         TargetEnchant(Enchantments.UNBREAKING, 3, unbreaking, "耐久3"),
         TargetEnchant(Enchantments.BINDING_CURSE, null, bindingCurse, "绑定诅咒"),
         TargetEnchant(Enchantments.VANISHING_CURSE, null, vanishingCurse, "消失诅咒"),
-        TargetEnchant(Enchantments.EFFICIENCY, 5, efficiency, "效率5"),
+        TargetEnchant(Enchantments.BLOCK_EFFICIENCY, 5, efficiency, "效率5"),
         TargetEnchant(Enchantments.SILK_TOUCH, null, silkTouch, "精准采集"),
-        TargetEnchant(Enchantments.FORTUNE, 3, fortune, "时运3"),
+        TargetEnchant(Enchantments.BLOCK_FORTUNE, 3, fortune, "时运3"),
         TargetEnchant(Enchantments.THORNS, 3, thorns, "荆棘3"),
-        TargetEnchant(Enchantments.PROTECTION, 4, protection, "保护4"),
+        TargetEnchant(Enchantments.ALL_DAMAGE_PROTECTION, 4, protection, "保护4"),
         TargetEnchant(Enchantments.FIRE_PROTECTION, 4, fireProtection, "火焰保护4"),
         TargetEnchant(Enchantments.BLAST_PROTECTION, 4, blastProtection, "爆炸保护4"),
         TargetEnchant(Enchantments.PROJECTILE_PROTECTION, 4, projectileProtection, "弹射物保护4"),
         TargetEnchant(Enchantments.RESPIRATION, 3, respiration, "水下呼吸3"),
         TargetEnchant(Enchantments.AQUA_AFFINITY, null, aquaAffinity, "水下速掘"),
-        TargetEnchant(Enchantments.FEATHER_FALLING, 4, featherFalling, "摔落保护4"),
+        TargetEnchant(Enchantments.FALL_PROTECTION, 4, featherFalling, "摔落保护4"),
         TargetEnchant(Enchantments.DEPTH_STRIDER, 3, depthStrider, "深海探索者3"),
         TargetEnchant(Enchantments.FROST_WALKER, 2, frostWalker, "冰霜行者2"),
         TargetEnchant(Enchantments.SHARPNESS, 5, sharpness, "锋利5"),
@@ -395,11 +386,11 @@ class ANAutoEnchantBook : ANBaseModule(
         TargetEnchant(Enchantments.BANE_OF_ARTHROPODS, 5, baneOfArthropods, "节肢杀手5"),
         TargetEnchant(Enchantments.KNOCKBACK, 2, knockback, "击退2"),
         TargetEnchant(Enchantments.FIRE_ASPECT, 2, fireAspect, "火焰附加2"),
-        TargetEnchant(Enchantments.LOOTING, 3, looting, "抢夺3"),
-        TargetEnchant(Enchantments.POWER, 5, power, "力量5"),
-        TargetEnchant(Enchantments.PUNCH, 2, punch, "冲击2"),
-        TargetEnchant(Enchantments.FLAME, null, flame, "火矢"),
-        TargetEnchant(Enchantments.INFINITY, null, infinity, "无限"),
+        TargetEnchant(Enchantments.MOB_LOOTING, 3, looting, "抢夺3"),
+        TargetEnchant(Enchantments.POWER_ARROWS, 5, power, "力量5"),
+        TargetEnchant(Enchantments.PUNCH_ARROWS, 2, punch, "冲击2"),
+        TargetEnchant(Enchantments.FLAMING_ARROWS, null, flame, "火矢"),
+        TargetEnchant(Enchantments.INFINITY_ARROWS, null, infinity, "无限"),
         TargetEnchant(Enchantments.PIERCING, 4, piercing, "穿透4"),
         TargetEnchant(Enchantments.QUICK_CHARGE, 3, quickCharge, "快速装填3"),
         TargetEnchant(Enchantments.MULTISHOT, null, multishot, "多重射击"),
@@ -407,12 +398,12 @@ class ANAutoEnchantBook : ANBaseModule(
         TargetEnchant(Enchantments.LOYALTY, 3, loyalty, "忠诚3"),
         TargetEnchant(Enchantments.RIPTIDE, 3, riptide, "激流3"),
         TargetEnchant(Enchantments.CHANNELING, null, channeling, "引雷"),
-        TargetEnchant(Enchantments.LUCK_OF_THE_SEA, 3, lucky, "海之眷顾3"),
-        TargetEnchant(Enchantments.LURE, 3, lure, "诱饵3")
+        TargetEnchant(Enchantments.FISHING_LUCK, 3, lucky, "海之眷顾3"),
+        TargetEnchant(Enchantments.FISHING_SPEED, 3, lure, "诱饵3")
     )
 
     private data class TargetEnchant(
-        val key: ResourceKey<Enchantment>,
+        val key: Enchantment,
         val level: Int?,
         val setting: ANSetting<Boolean>,
         val label: String

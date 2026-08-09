@@ -6,9 +6,8 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import net.minecraft.client.Minecraft
-import net.minecraft.client.renderer.rendertype.ANPilotRenderTypes
-import net.minecraft.client.renderer.rendertype.RenderType
-import net.minecraft.resources.Identifier
+import net.minecraft.client.renderer.RenderType
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal
 import net.minecraft.world.entity.monster.Enemy
@@ -65,20 +64,12 @@ class ANChams : ANBaseModule(
         return outlineColor.value.toANColor().withAlpha(255).argb
     }
 
-    fun renderType(texture: Identifier): RenderType {
-        return if (mode.value == Mode.SHINE) {
-            ANPilotRenderTypes.chamsShineEntity(SHINE_TEXTURE, true)
-        } else {
-            ANPilotRenderTypes.chamsEntity(texture, true)
-        }
+    fun renderType(texture: ResourceLocation): RenderType {
+        return RenderType.entityCutout(texture)
     }
 
-    fun armorRenderType(texture: Identifier): RenderType {
-        return if (mode.value == Mode.SHINE) {
-            ANPilotRenderTypes.chamsShineArmorEntity(SHINE_TEXTURE)
-        } else {
-            ANPilotRenderTypes.chamsArmorEntity(texture)
-        }
+    fun armorRenderType(texture: ResourceLocation): RenderType {
+        return RenderType.entityCutout(texture)
     }
 
     private fun hasOutline(): Boolean {
@@ -93,6 +84,6 @@ class ANChams : ANBaseModule(
     }
 
     private companion object {
-        val SHINE_TEXTURE: Identifier = Identifier.fromNamespaceAndPath("anpilotclient", "textures/chams.png")
+        val SHINE_TEXTURE: ResourceLocation = ResourceLocation("anpilotclient", "textures/chams.png")
     }
 }

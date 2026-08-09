@@ -8,6 +8,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.FriendGroupSetting
 import net.minecraft.client.Minecraft
 import net.minecraft.client.resources.DefaultPlayerSkin
+import anpilot.client.compat.PlayerSkin
 import java.awt.Color
 import java.util.UUID
 
@@ -67,11 +68,9 @@ class FriendGroupElement(
         val connection = Minecraft.getInstance().connection
         val entry = connection?.getPlayerInfo(name)
         if (entry != null) {
-            context.head(entry.skin, x + 4f, rowY + 3f, 12f)
+            context.head(PlayerSkin(entry.skinLocation), x + 4f, rowY + 3f, 12f)
         } else {
-            val uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:$name").toByteArray())
-            val skin = DefaultPlayerSkin.get(uuid)
-            context.head(skin, x + 4f, rowY + 3f, 12f)
+            context.head(PlayerSkin(DefaultPlayerSkin.getDefaultSkin()), x + 4f, rowY + 3f, 12f)
         }
 
         

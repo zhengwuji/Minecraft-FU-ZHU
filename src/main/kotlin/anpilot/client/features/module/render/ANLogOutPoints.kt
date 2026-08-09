@@ -1,7 +1,9 @@
 package anpilot.client.features.module.render
 
 import anpilot.client.api.module.ANModuleCategory
+import anpilot.client.bootstrap.ANServiceRegistry
 import anpilot.client.features.event.ANEventHandler
+import anpilot.client.features.event.impl.PacketEvent
 import anpilot.client.features.event.impl.Render2DEvent
 import anpilot.client.features.module.ANBaseModule
 import anpilot.client.features.module.ANWorldRenderModule
@@ -11,167 +13,161 @@ import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.font.ANFontRenderer
 import anpilot.client.renderer.render.ANRender2DEngine
 import anpilot.client.renderer.render.ANRender3DEngine
+import anpilot.client.compat.LevelRenderContext
+import anpilot.client.compat.projectPointToScreen
 import com.mojang.authlib.GameProfile
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.client.multiplayer.ClientLevel
-import net.minecraft.client.player.RemotePlayer
-import net.minecraft.resources.ResourceKey
+import net.minecraft.client.player.AbstractClientPlayer
+import net.minecraft.core.BlockPos
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket
+import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.player.Player
-import net.minecraft.world.level.Level
+import net.minecraft.world.entity.player.PlayerModelPart
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import java.awt.Color
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.roundToInt
 
 class ANLogOutPoints : ANBaseModule(
-    name = "LogoutSpots",
-    description = "在其他玩家下线断开连接的位置保留绘制3D选框与玩家残像模型",
+    name = "LogOutPoints",
+    description = "标记附近玩家退出游戏时的离线位置坐标并显示投影残影",
     category = ANModuleCategory.RENDER,
-    chineseName = "下线位置"
+    chineseName = "登出记录"
 ), ANWorldRenderModule {
-    enum class RenderMode {
-        Box, Model, Both
-    }
 
-    val scale = addSetting(ANSetting("Scale", 1.0f, 0.1f, 2.0f))
-    val renderMode = addSetting(ANSetting("RenderMode", RenderMode.Both))
-
-    val lineColor = addSetting(ANSetting("LineColor", ColorGroupSetting(Color(255, 0, 255, 255).rgb)))
-    val sideColor = addSetting(ANSetting("SideColor", ColorGroupSetting(Color(255, 0, 255, 55).rgb)))
+    val range = addSetting(ANSetting("Range", 200f, 10f, 500f))
+    val scale = addSetting(ANSetting("Scale", 1.0f, 0.2f, 3.0f))
+    val renderBox = addSetting(ANSetting("RenderBox", true))
+    val renderPlayer = addSetting(ANSetting("RenderPlayer", true))
+    val boxColor = addSetting(ANSetting("BoxColor", ColorGroupSetting(Color(255, 60, 60, 180).rgb)))
+    val fillColor = addSetting(ANSetting("FillColor", ColorGroupSetting(Color(255, 60, 60, 40).rgb)))
     val textColor = addSetting(ANSetting("TextColor", ColorGroupSetting(Color(255, 255, 255, 255).rgb)))
-    val plateFill = addSetting(ANSetting("PlateFill", ColorGroupSetting(Color(0, 0, 0, 120).rgb)))
-    val plateBorder = addSetting(ANSetting("PlateBorder", ColorGroupSetting(Color(0, 0, 0, 0).rgb)))
 
-    private val logoutSpots = ArrayList<LogoutSpot>()
-    
-    private val lastOnlineUUIDs = HashSet<UUID>()
-    private val lastKnownStates = HashMap<UUID, LastKnownPlayerState>()
-    private var lastDimension: ResourceKey<Level>? = null
-    private var ticks = 0
-    
+    private val logoutSpots = CopyOnWriteArrayList<LogoutSpot>()
+    private val playerInfoCache = ConcurrentHashMap<UUID, CachedPlayerInfo>()
     private var fontRenderer: ANFontRenderer? = null
-    private var lastRenderMode: RenderMode? = null
-
-    override fun onEnable() {
-        logoutSpots.clear()
-        lastOnlineUUIDs.clear()
-        lastKnownStates.clear()
-        lastDimension = null
-        lastRenderMode = renderMode.value
-        ticks = 0
-    }
 
     override fun onDisable() {
-        for (spot in logoutSpots) {
-            spot.entity?.despawnPlayer()
-        }
+        logoutSpots.forEach { it.entity?.despawnPlayer() }
         logoutSpots.clear()
-        lastOnlineUUIDs.clear()
-        lastKnownStates.clear()
+        playerInfoCache.clear()
     }
 
     override fun onTick() {
-        ticks++
-        if (fullNullCheck()) {
-            if (logoutSpots.isNotEmpty() || lastOnlineUUIDs.isNotEmpty() || lastKnownStates.isNotEmpty()) {
-                for (spot in logoutSpots) {
-                    spot.entity?.despawnPlayer()
-                }
-                logoutSpots.clear()
-                lastOnlineUUIDs.clear()
-                lastKnownStates.clear()
-                lastDimension = null
-            }
-            return
+        val level = mc.level ?: return
+        val player = mc.player ?: return
+
+        for (p in level.players()) {
+            if (p === player) continue
+            playerInfoCache[p.uuid] = CachedPlayerInfo(
+                p.gameProfile,
+                p.position(),
+                p.yRot,
+                p.xRot,
+                p.yHeadRot,
+                p.yBodyRot,
+                p.health.toInt(),
+                p.bbWidth.toDouble(),
+                p.bbHeight.toDouble(),
+                LogoutPlayerEntity.getModelParts(p)
+            )
         }
-        val connection = mc.connection ?: return
+
+        val maxDistSq = range.value * range.value
+        logoutSpots.removeIf { spot ->
+            val distSq = player.distanceToSqr(spot.x, spot.y, spot.z)
+            if (distSq > maxDistSq) {
+                spot.entity?.despawnPlayer()
+                spot.entity = null
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    @ANEventHandler
+    fun onPacketReceive(event: PacketEvent.Receive) {
         val level = mc.level ?: return
 
-        
-        val currentDimension = level.dimension()
-        if (currentDimension != lastDimension) {
-            for (spot in logoutSpots) {
-                spot.entity?.despawnPlayer()
-            }
-            logoutSpots.clear()
-            lastOnlineUUIDs.clear()
-            lastKnownStates.clear()
-        }
-        lastDimension = currentDimension
-
-        
-        if (renderMode.value != lastRenderMode) {
-            refreshEntities()
-            lastRenderMode = renderMode.value
-        }
-
-        val currentOnline = connection.onlinePlayers
-        val currentUUIDs = currentOnline.map { it.profile.id }.toSet()
-
-        
-        for (lastUuid in lastOnlineUUIDs) {
-            if (!currentUUIDs.contains(lastUuid)) {
-                val state = lastKnownStates[lastUuid]
-                if (state != null) {
-                    val ticksSinceLastSeen = ticks - state.tickLastSeen
-                    if (ticksSinceLastSeen <= 5) {
-                        addSpot(state.player)
+        when (val packet = event.packet) {
+            is ClientboundPlayerInfoUpdatePacket -> {
+                for (entry in packet.newEntries()) {
+                    val profile = entry.profile ?: continue
+                    val spot = logoutSpots.firstOrNull { it.uuid == profile.id }
+                    if (spot != null) {
+                        spot.entity?.despawnPlayer()
+                        logoutSpots.remove(spot)
                     }
-                    lastKnownStates.remove(lastUuid)
                 }
             }
-        }
 
-        
-        for (uuid in currentUUIDs) {
-            val toRemove = logoutSpots.filter { it.uuid == uuid }
-            for (spot in toRemove) {
-                spot.entity?.despawnPlayer()
-            }
-            logoutSpots.removeIf { it.uuid == uuid }
-        }
+            is ClientboundPlayerInfoRemovePacket -> {
+                for (uuid in packet.profileIds) {
+                    val info = playerInfoCache.remove(uuid) ?: continue
+                    if (level.getPlayerByUUID(uuid) != null) continue
 
-        
-        lastOnlineUUIDs.clear()
-        lastOnlineUUIDs.addAll(currentUUIDs)
+                    val spot = LogoutSpot(
+                        info.profile.id,
+                        info.profile.name,
+                        info.pos.x,
+                        info.pos.y,
+                        info.pos.z,
+                        info.yaw,
+                        info.pitch,
+                        info.yawHead,
+                        info.yawBody,
+                        info.health,
+                        info.width,
+                        info.height,
+                        info.modelParts,
+                        info.profile
+                    )
 
-        
-        for (player in level.players()) {
-            if (player != mc.player) {
-                lastKnownStates[player.uuid] = LastKnownPlayerState(player, ticks)
+                    if (renderPlayer.value) {
+                        val entity = LogoutPlayerEntity(level, info.profile, spot)
+                        spot.entity = entity
+                        mc.execute {
+                            entity.spawnPlayer()
+                        }
+                    }
+
+                    logoutSpots.add(spot)
+                }
             }
         }
     }
 
     override fun renderWorld(context: LevelRenderContext) {
-        if (renderMode.value == RenderMode.Model) return
-        val line = lineColor.value.toANColor()
-        val side = sideColor.value.toANColor()
+        if (!renderBox.value || logoutSpots.isEmpty()) return
+
+        val line = boxColor.value.toANColor()
+        val fill = fillColor.value.toANColor()
 
         for (spot in logoutSpots) {
+            val halfW = spot.width / 2.0
             val box = AABB(
-                spot.x, spot.y, spot.z,
-                spot.x + spot.width, spot.y + spot.height, spot.z + spot.width
+                spot.x - halfW, spot.y, spot.z - halfW,
+                spot.x + halfW, spot.y + spot.height, spot.z + halfW
             )
-            ANRender3DEngine.box(context, box, line, side)
+            ANRender3DEngine.box(context, box, line, fill)
         }
     }
 
     @ANEventHandler
     fun onRender2D(event: Render2DEvent) {
+        if (logoutSpots.isEmpty()) return
+        val context = event.context
         val localPlayer = mc.player ?: return
         val customFont = fontRenderer ?: ANFontRenderer(mc.font).also { fontRenderer = it }
-        val context = event.context
 
         for (spot in logoutSpots) {
-            val worldPos = Vec3(
-                spot.x + spot.width / 2.0,
-                spot.y + spot.height + 0.5,
-                spot.z + spot.width / 2.0
-            )
+            val worldPos = Vec3(spot.x, spot.y + spot.height + 0.3, spot.z)
 
             val distance = worldPos.distanceTo(localPlayer.eyePosition)
             val distFactor = 12f / maxOf(distance.toFloat(), 5f)
@@ -193,31 +189,20 @@ class ANLogOutPoints : ANBaseModule(
             val rectWidth = nameWidth + 10f * scaleFactor
             val rectHeight = 10f * scaleFactor
             val rectX = x - rectWidth / 2f
-            val gap = 4f * scaleFactor
-            val rectY = y - gap - rectHeight
+            val rectY = y - rectHeight
 
-            
             ANRender2DEngine.borderedRoundedRect(
                 context,
                 rectX,
                 rectY,
                 rectWidth,
                 rectHeight,
-                7f * scaleFactor,
+                4f * scaleFactor,
                 1f * scaleFactor,
-                plateFill.value.getColorRGB().rgb,
-                plateBorder.value.getColorRGB().rgb
+                fillColor.value.getColorRGB().rgb,
+                boxColor.value.getColorRGB().rgb
             )
 
-            
-            val healthPercentage = spot.health.toDouble() / spot.maxHealth
-            val healthColor = when {
-                healthPercentage <= 0.333 -> Color(225, 25, 25).rgb
-                healthPercentage <= 0.666 -> Color(225, 105, 25).rgb
-                else -> Color(25, 225, 25).rgb
-            }
-
-            
             val textX = x - nameWidth / 2f
             val textY = rectY + 2f * scaleFactor
 
@@ -227,95 +212,47 @@ class ANLogOutPoints : ANBaseModule(
                 healthText,
                 textX + customFont.width(spot.name, uiScale),
                 textY,
-                healthColor,
+                0xFFFF5555.toInt(),
                 uiScale
             )
         }
     }
 
-    private fun addSpot(player: Player) {
-        val halfWidth = player.bbWidth / 2.0
-        val spot = LogoutSpot(
-            uuid = player.uuid,
-            name = player.name.string,
-            x = player.x - halfWidth,
-            y = player.y,
-            z = player.z - halfWidth,
-            width = player.bbWidth.toDouble(),
-            height = player.bbHeight.toDouble(),
-            health = (player.health + player.absorptionAmount).roundToInt(),
-            maxHealth = (player.maxHealth + player.absorptionAmount).roundToInt(),
-            yaw = player.yRot,
-            pitch = player.xRot,
-            yawHead = player.yHeadRot,
-            yawBody = player.yBodyRot,
-            modelParts = LogoutPlayerEntity.getModelParts(player)
-        )
-        
-        logoutSpots.removeIf { 
-            if (it.uuid == spot.uuid) {
-                it.entity?.despawnPlayer()
-                true
-            } else {
-                false
-            }
-        }
-
-        if (renderMode.value == RenderMode.Model || renderMode.value == RenderMode.Both) {
-            val level = mc.level
-            if (level != null) {
-                val profile = GameProfile(player.uuid, player.name.string)
-                val entity = LogoutPlayerEntity(level, profile, player)
-                entity.spawnPlayer()
-                spot.entity = entity
-            }
-        }
-
-        logoutSpots.add(spot)
-    }
-
-    private fun refreshEntities() {
-        val level = mc.level ?: return
-        for (spot in logoutSpots) {
-            spot.entity?.despawnPlayer()
-            spot.entity = null
-
-            if (renderMode.value == RenderMode.Model || renderMode.value == RenderMode.Both) {
-                val profile = GameProfile(spot.uuid, spot.name)
-                val entity = LogoutPlayerEntity(level, profile, spot)
-                entity.spawnPlayer()
-                spot.entity = entity
-            }
-        }
-    }
-
     private fun ColorGroupSetting.toANColor(): ANColor = ANColor.fromArgb(getColor())
 
-    private data class LastKnownPlayerState(
-        val player: Player,
-        val tickLastSeen: Int
+    private data class CachedPlayerInfo(
+        val profile: GameProfile,
+        val pos: Vec3,
+        val yaw: Float,
+        val pitch: Float,
+        val yawHead: Float,
+        val yawBody: Float,
+        val health: Int,
+        val width: Double,
+        val height: Double,
+        val modelParts: Byte
     )
 
-    private data class LogoutSpot(
+    class LogoutSpot(
         val uuid: UUID,
         val name: String,
         val x: Double,
         val y: Double,
         val z: Double,
-        val width: Double,
-        val height: Double,
-        val health: Int,
-        val maxHealth: Int,
         val yaw: Float,
         val pitch: Float,
         val yawHead: Float,
         val yawBody: Float,
+        val health: Int,
+        val width: Double,
+        val height: Double,
         val modelParts: Byte,
+        val profile: GameProfile,
         var entity: LogoutPlayerEntity? = null
     )
 
-    private class LogoutPlayerEntity : RemotePlayer {
-        constructor(level: ClientLevel, profile: GameProfile, player: Player) : super(level, profile) {
+    class LogoutPlayerEntity : AbstractClientPlayer {
+        constructor(player: Player) : super(player.level() as ClientLevel, player.gameProfile) {
             setPos(player.x, player.y, player.z)
             yRot = player.yRot
             xRot = player.xRot
@@ -325,8 +262,6 @@ class ANLogOutPoints : ANBaseModule(
 
             val modelParts = player.entityData.get(DATA_PLAYER_MODE_CUSTOMISATION)
             entityData.set(DATA_PLAYER_MODE_CUSTOMISATION, modelParts)
-
-            attributes.assignAllValues(player.attributes)
 
             isShiftKeyDown = player.isShiftKeyDown
             isSwimming = player.isSwimming
@@ -356,12 +291,12 @@ class ANLogOutPoints : ANBaseModule(
 
         fun spawnPlayer() {
             unsetRemoved()
-            Minecraft.getInstance().level?.addEntity(this)
+            Minecraft.getInstance().level?.addFreshEntity(this)
         }
 
         fun despawnPlayer() {
-            Minecraft.getInstance().level?.removeEntity(id, RemovalReason.DISCARDED)
-            setRemoved(RemovalReason.DISCARDED)
+            Minecraft.getInstance().level?.removeEntity(id, Entity.RemovalReason.DISCARDED)
+            setRemoved(Entity.RemovalReason.DISCARDED)
         }
 
         companion object {

@@ -4,19 +4,20 @@ import anpilot.client.api.module.ANModuleCategory
 import anpilot.client.features.module.ANBaseModule
 import anpilot.client.features.setting.ANSetting
 import net.minecraft.client.Minecraft
-import net.minecraft.core.component.DataComponents
 import net.minecraft.world.entity.EquipmentSlot
+import net.minecraft.world.entity.Mob
 import net.minecraft.world.entity.ai.attributes.Attributes
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.InventoryMenu
+import net.minecraft.world.item.ArmorItem
+import net.minecraft.world.item.ElytraItem
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
+import net.minecraft.world.item.enchantment.Enchantment
+import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.enchantment.Enchantments
 import java.util.Arrays
 import java.util.Comparator
-import net.minecraft.resources.ResourceKey
-import net.minecraft.world.entity.ai.attributes.AttributeModifier
-import net.minecraft.world.item.enchantment.Enchantment
 
 class ANAutoArmour : ANBaseModule(
     name = "AutoArmour",
@@ -81,13 +82,13 @@ class ANAutoArmour : ANBaseModule(
     }
 
     private fun hasAvoidedEnchantment(itemStack: ItemStack): Boolean {
-        val enchantments = itemStack.enchantments
-        return enchantments.keySet().any { it.`is`(Enchantments.BINDING_CURSE) }
+        return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BINDING_CURSE, itemStack) > 0
     }
 
     private fun getItemSlotId(itemStack: ItemStack): Int {
-        if (itemStack.has(DataComponents.GLIDER)) return 2
-        return armorSlotId(itemStack.get(DataComponents.EQUIPPABLE)?.slot() ?: return -1)
+        if (itemStack.item is ElytraItem) return 2
+        val slot = (itemStack.item as? ArmorItem)?.equipmentSlot ?: Mob.getEquipmentSlotForItem(itemStack)
+        return armorSlotId(slot)
     }
 
     private fun getScore(itemStack: ItemStack): Int {
@@ -95,22 +96,19 @@ class ANAutoArmour : ANBaseModule(
 
         var score = 0
 
-        score += 3 * getEnchantmentLevel(itemStack, Enchantments.BLAST_PROTECTION)
-        score += getEnchantmentLevel(itemStack, Enchantments.PROTECTION)
-        score += getEnchantmentLevel(itemStack, Enchantments.BLAST_PROTECTION)
-        score += getEnchantmentLevel(itemStack, Enchantments.FIRE_PROTECTION)
-        score += getEnchantmentLevel(itemStack, Enchantments.PROJECTILE_PROTECTION)
-        score += getEnchantmentLevel(itemStack, Enchantments.UNBREAKING)
-        score += 2 * getEnchantmentLevel(itemStack, Enchantments.MENDING)
+        score += 3 * EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BLAST_PROTECTION, itemStack)
+        score += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.ALL_DAMAGE_PROTECTION, itemStack)
+        score += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.FIRE_PROTECTION, itemStack)
+        score += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PROJECTILE_PROTECTION, itemStack)
+        score += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.UNBREAKING, itemStack)
+        score += 2 * EnchantmentHelper.getItemEnchantmentLevel(Enchantments.MENDING, itemStack)
 
-        itemStack.get(DataComponents.ATTRIBUTE_MODIFIERS)?.modifiers()?.forEach { modifier ->
-            if (modifier.attribute() == Attributes.ARMOR || modifier.attribute() == Attributes.ARMOR_TOUGHNESS) {
-                val e = modifier.modifier().amount()
-                score += when (modifier.modifier().operation()) {
-                    AttributeModifier.Operation.ADD_VALUE -> e.toInt()
-                    AttributeModifier.Operation.ADD_MULTIPLIED_BASE -> (e * Minecraft.getInstance().player!!.getAttributeBaseValue(modifier.attribute())).toInt()
-                    AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL -> (e * score).toInt()
-                }
+        val slot = (itemStack.item as? ArmorItem)?.equipmentSlot ?: EquipmentSlot.CHEST
+        val modifiers = itemStack.getAttributeModifiers(slot)
+        for (entry in modifiers.entries()) {
+            if (entry.key == Attributes.ARMOR || entry.key == Attributes.ARMOR_TOUGHNESS) {
+                val mod = entry.value
+                score += mod.amount.toInt()
             }
         }
 
@@ -133,7 +131,7 @@ class ANAutoArmour : ANBaseModule(
     }
 
     private fun isArmor(itemStack: ItemStack): Boolean {
-        return itemStack.get(DataComponents.EQUIPPABLE)?.slot()?.type == EquipmentSlot.Type.HUMANOID_ARMOR || itemStack.has(DataComponents.GLIDER)
+        return itemStack.item is ArmorItem || itemStack.item is ElytraItem
     }
 
     private inner class ArmorPiece(private val slot: EquipmentSlot) {
@@ -165,7 +163,7 @@ class ANAutoArmour : ANBaseModule(
 
             val itemStack = player.getItemBySlot(slot)
 
-            if (itemStack.item == Items.ELYTRA && !player.onGround()) {
+            if (itemStack.`is`(Items.ELYTRA) && !player.onGround()) {
                 score = Int.MAX_VALUE
                 return
             }
@@ -199,7 +197,7 @@ class ANAutoArmour : ANBaseModule(
         }
 
         private fun decreaseScoreByAvoidedEnchantments(score: Int, itemStack: ItemStack): Int {
-            return score - 2 * getEnchantmentLevel(itemStack, Enchantments.BINDING_CURSE)
+            return score - 2 * EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BINDING_CURSE, itemStack)
         }
 
         private fun applyAntiBreakScore(score: Int, itemStack: ItemStack): Int {
@@ -211,40 +209,34 @@ class ANAutoArmour : ANBaseModule(
         }
     }
 
-    private fun getEnchantmentLevel(itemStack: ItemStack, enchantment: ResourceKey<Enchantment>): Int {
-        val enchantments = itemStack.enchantments
-        val holder = enchantments.keySet().firstOrNull { it.`is`(enchantment) } ?: return 0
-        return enchantments.getLevel(holder)
-    }
-
     private fun move(from: Int, armorSlotId: Int) {
         val fromId = toMenuSlot(from)
         val toId = armorMenuSlot(armorSlotId)
         val minecraft = Minecraft.getInstance()
         val player = minecraft.player ?: return
         val gameMode = minecraft.gameMode ?: return
-        gameMode.handleContainerInput(player.containerMenu.containerId, fromId, 0, ContainerInput.PICKUP, player)
-        gameMode.handleContainerInput(player.containerMenu.containerId, toId, 0, ContainerInput.PICKUP, player)
-        gameMode.handleContainerInput(player.containerMenu.containerId, fromId, 0, ContainerInput.PICKUP, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, fromId, 0, ClickType.PICKUP, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, toId, 0, ClickType.PICKUP, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, fromId, 0, ClickType.PICKUP, player)
     }
 
     private fun click(slot: Int) {
         val minecraft = Minecraft.getInstance()
         val player = minecraft.player ?: return
-        minecraft.gameMode?.handleContainerInput(player.containerMenu.containerId, slot, 0, ContainerInput.PICKUP, player)
+        minecraft.gameMode?.handleInventoryMouseClick(player.containerMenu.containerId, slot, 0, ClickType.PICKUP, player)
     }
 
     private fun shiftClickArmor(armorSlotId: Int) {
         val minecraft = Minecraft.getInstance()
         val player = minecraft.player ?: return
-        minecraft.gameMode?.handleContainerInput(player.containerMenu.containerId, armorMenuSlot(armorSlotId), 0, ContainerInput.QUICK_MOVE, player)
+        minecraft.gameMode?.handleInventoryMouseClick(player.containerMenu.containerId, armorMenuSlot(armorSlotId), 0, ClickType.QUICK_MOVE, player)
     }
 
     private fun dropHand() {
         val minecraft = Minecraft.getInstance()
         val player = minecraft.player ?: return
         if (!player.containerMenu.carried.isEmpty) {
-            minecraft.gameMode?.handleContainerInput(player.containerMenu.containerId, -999, 0, ContainerInput.PICKUP, player)
+            minecraft.gameMode?.handleInventoryMouseClick(player.containerMenu.containerId, -999, 0, ClickType.PICKUP, player)
         }
     }
 

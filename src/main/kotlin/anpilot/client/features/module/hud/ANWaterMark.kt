@@ -2,7 +2,7 @@ package anpilot.client.features.module.hud
 
 import anpilot.client.api.gui.ANGuiRenderContext
 import anpilot.client.features.module.anpilot.ANTheme
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 
 class ANWaterMark : ANDraggableHudModule("WaterMark", "客户端Logo与版本水印", "客户端水印", 20f, 10f) {
     override fun renderHudContent(context: ANGuiRenderContext, editor: Boolean) {
@@ -12,6 +12,6 @@ class ANWaterMark : ANDraggableHudModule("WaterMark", "客户端Logo与版本水
     }
 
     companion object {
-        private val WATERMARK_TEXTURE: Identifier = Identifier.fromNamespaceAndPath("anpilotclient", "textures/icons/logo.png")
+        private val WATERMARK_TEXTURE: Identifier = Identifier("anpilotclient", "textures/icons/logo.png")
     }
 }

@@ -94,7 +94,7 @@ class ANAutoXP : ANBaseModule(
         val player = mc.player ?: return false
         val gameMode = mc.gameMode ?: return false
 
-        val selected = player.inventory.selectedSlot
+        val selected = player.inventory.selected
         val swapType = xpSlot.swapType
         val swapped = when {
             xpSlot.slot == selected -> true

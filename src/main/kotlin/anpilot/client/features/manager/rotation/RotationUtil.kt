@@ -24,10 +24,10 @@ object RotationUtil {
     fun getRotationVector(yaw: Float, pitch: Float): Vec3 {
         val f = pitch * (Math.PI.toFloat() / 180.0f)
         val g = -yaw * (Math.PI.toFloat() / 180.0f)
-        val h = Mth.cos(g.toDouble())
-        val i = Mth.sin(g.toDouble())
-        val j = Mth.cos(f.toDouble())
-        val k = Mth.sin(f.toDouble())
+        val h = Mth.cos(g)
+        val i = Mth.sin(g)
+        val j = Mth.cos(f)
+        val k = Mth.sin(f)
         return Vec3((i * j).toDouble(), (-k).toDouble(), (h * j).toDouble())
     }
 }

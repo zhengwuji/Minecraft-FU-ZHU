@@ -16,13 +16,12 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.network.chat.Component
 import net.minecraft.world.InteractionHand
-import net.minecraft.world.attribute.EnvironmentAttributes
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.BedItem
@@ -89,7 +88,7 @@ class ANAutoBed : ANBaseModule(
         plan = nextPlan
 
         if (dimensionCheck.value && !canBedExplode(nextPlan.bedHead)) {
-            mc.gui.chat.addClientSystemMessage(Component.literal("搂c[AutoBed] Beds do not explode in this dimension. Disabling."))
+            mc.gui.chat.addMessage(Component.literal("§c[AutoBed] Beds do not explode in this dimension. Disabling."))
             disable()
             return
         }
@@ -194,10 +193,10 @@ class ANAutoBed : ANBaseModule(
 
     private fun useSlot(slot: Int, action: () -> Unit): Boolean {
         val player = mc.player ?: return false
-        if (!autoSwap.value && slot != player.inventory.selectedSlot) return false
+        if (!autoSwap.value && slot != player.inventory.selected) return false
 
         val type = if (slot in 0 until Inventory.HOTBAR_SIZE) SilentSwapType.HOTBAR else SilentSwapType.INVENTORY
-        val selected = player.inventory.selectedSlot
+        val selected = player.inventory.selected
         val swapped = when {
             slot == selected -> true
             silentSwap.value || type == SilentSwapType.INVENTORY -> Inventory.startSwap(slot, type)
@@ -377,7 +376,7 @@ class ANAutoBed : ANBaseModule(
 
     private fun canBedExplode(pos: BlockPos): Boolean {
         val level = mc.level ?: return false
-        return level.environmentAttributes().getValue(EnvironmentAttributes.BED_RULE, pos).explodes()
+        return !level.dimensionType().bedWorks()
     }
 
     private fun findSlot(predicate: (ItemStack) -> Boolean): Int {

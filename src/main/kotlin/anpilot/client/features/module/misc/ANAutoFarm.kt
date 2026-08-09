@@ -15,7 +15,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
@@ -24,7 +24,7 @@ import net.minecraft.tags.ItemTags
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.ChestMenu
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.ShulkerBoxMenu
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -449,7 +449,7 @@ class ANAutoFarm : ANBaseModule(
         for (slot in storageSize until menu.slots.size) {
             val stack = menu.slots[slot].item
             if (stack.isEmpty || !isHarvestOutput(stack)) continue
-            mc.gameMode?.handleContainerInput(menu.containerId, slot, 0, ContainerInput.QUICK_MOVE, player)
+            mc.gameMode?.handleInventoryMouseClick(menu.containerId, slot, 0, ClickType.QUICK_MOVE, player)
             return true
         }
         return false

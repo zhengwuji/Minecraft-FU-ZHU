@@ -21,7 +21,7 @@ import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.features.setting.impl.FileSelectSetting
 import anpilot.client.minecraft.gui.MinecraftGuiRenderContext
 import anpilot.client.renderer.ANColor
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -44,7 +44,7 @@ import anpilot.client.features.ai.utils.BaritoneHelper
 import anpilot.client.features.utility.ANTimer
 import anpilot.client.renderer.render.ANRender3DEngine
 import net.minecraft.world.inventory.ChestMenu
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.ChestBlock
 import net.minecraft.world.level.block.state.properties.ChestType
@@ -62,7 +62,7 @@ class ANMapArt : ANBaseModule(
     val offsetX = addSetting(ANSetting("OffsetX", 0, -64, 64) { isPage(Page.RENDER) })
     val offsetY = addSetting(ANSetting("OffsetY", 0, -32, 32) { isPage(Page.RENDER) })
     val offsetZ = addSetting(ANSetting("OffsetZ", 0, -64, 64) { isPage(Page.RENDER) })
-    val rotate = addSetting(ANSetting("Rotate", LitematicLoader.Rotation.NONE) { isPage(Page.RENDER) })
+    val rotate = addSetting(ANSetting("Rotate", 0, 0, 3) { isPage(Page.RENDER) })
     val placeRange = addSetting(ANSetting("PlaceRange", 4.0f, 1.0f, 6.0f) { isPage(Page.MAIN) })
     val placeDelay = addSetting(ANSetting("PlaceDelay", 1, 0, 5) { isPage(Page.MAIN) })
     val blocksPerTick = addSetting(ANSetting("BlocksPerTick", 1, 1, 16) { isPage(Page.MAIN) })
@@ -77,14 +77,10 @@ class ANMapArt : ANBaseModule(
     val builtColor = addSetting(ANSetting("BuiltColor", ColorGroupSetting(Color(80, 255, 120, 45).rgb)) { isPage(Page.RENDER) })
 
     private var projection = LitematicLoader.Projection("", emptyList(), LitematicLoader.Bounds.EMPTY)
-    private var renderCache = LitematicLoader.RenderCache.EMPTY
-    private var renderCacheBuilder: LitematicLoader.RenderCache.Builder? = null
-    private var cachedTransform = LitematicLoader.Transform(BlockPos.ZERO)
     private var placeCacheTransform = LitematicLoader.Transform(BlockPos.ZERO)
     private var placeCacheProjectionName = ""
     private var placeCacheBlockCount = 0
     private var placeBlocks = emptyList<PlaceBlock>()
-    private var buildTicks = 0
     private var placeCooldown = 0
     private var loadedFileName = ""
     private var origin = BlockPos.ZERO
@@ -138,13 +134,10 @@ class ANMapArt : ANBaseModule(
     override fun onDisable() {
         placingStarted = false
         projection = LitematicLoader.Projection("", emptyList(), LitematicLoader.Bounds.EMPTY)
-        renderCache = LitematicLoader.RenderCache.EMPTY
-        renderCacheBuilder = null
         placeBlocks = emptyList()
         placeCooldown = 0
         Inventory.endSwap()
         Inventory.swapBack()
-        LitematicLoader.clearTextureMeshes()
         loadedFileName = ""
 
         chestListPos.forEach { it.clear() }
@@ -172,10 +165,7 @@ class ANMapArt : ANBaseModule(
         if (file.value.currentFileName() != loadedFileName) {
             loadProjection()
         }
-        ensureRenderCache()
         ensurePlaceCache()
-        stepRenderCacheBuild()
-        scanBuiltBlocks()
 
         if (!placingStarted) {
             val hit = mc.hitResult
@@ -301,19 +291,18 @@ class ANMapArt : ANBaseModule(
 
     override fun renderWorld(context: LevelRenderContext) {
         if (projection.blocks.isEmpty()) return
-        ensureRenderCache()
         LitematicLoader.render(
             context,
-            renderCache,
+            projection,
+            currentTransform(),
             LitematicLoader.RenderOptions(
                 texture = true,
                 fill = fill.value,
                 outline = outline.value,
                 renderBuilt = false,
-                onlyTopFace = placingStarted,
                 missingColor = missingColor.value.toANColor(),
                 wrongColor = wrongColor.value.toANColor(),
-                builtColor = builtColor.value.toANColor()
+                correctColor = builtColor.value.toANColor()
             )
         )
 
@@ -354,10 +343,6 @@ class ANMapArt : ANBaseModule(
 
     @ANEventHandler
     fun onPacketReceive(event: PacketEvent.Receive) {
-        when (val packet = event.packet) {
-            is ClientboundBlockUpdatePacket -> renderCache.updateStatus(packet.pos, packet.blockState)
-            is ClientboundSectionBlocksUpdatePacket -> packet.runUpdates { pos, state -> renderCache.updateStatus(pos, state) }
-        }
     }
 
     @ANEventHandler
@@ -393,94 +378,30 @@ class ANMapArt : ANBaseModule(
 
         val rawProjection = LitematicLoader.load(ANConfigManager.mapArtFile(selected))
         if (rawProjection.blocks.isNotEmpty()) {
-            val minY = rawProjection.blocks.minOf { it.relativePos.y }
-            val filteredBlocks = rawProjection.blocks.filter { it.relativePos.y == minY }
+            val minY = rawProjection.blocks.minOf { it.pos.y }
+            val filteredBlocks = rawProjection.blocks.filter { it.pos.y == minY }
             projection = LitematicLoader.Projection(
                 name = rawProjection.name,
                 blocks = filteredBlocks,
-                bounds = rawProjection.bounds,
-                author = rawProjection.author
+                bounds = rawProjection.bounds
             )
         } else {
             projection = rawProjection
         }
 
-        startRenderCacheBuild()
         sendClientMessage("已成功加载投影 ${projection.name}：共 ${projection.blocks.size} 个方块（已限制为第 1 层）")
-    }
-
-    private fun ensureRenderCache() {
-        val transform = currentTransform()
-        if (renderCacheBuilder?.matches(projection, transform) == true) return
-        if (renderCache.projectionName == projection.name && cachedTransform == transform && renderCache.blockCount == projection.blocks.size) return
-        startRenderCacheBuild(transform)
-    }
-
-    private fun startRenderCacheBuild(transform: LitematicLoader.Transform = currentTransform()) {
-        cachedTransform = transform
-        renderCache = LitematicLoader.RenderCache.EMPTY
-        LitematicLoader.clearTextureMeshes()
-        renderCacheBuilder = LitematicLoader.RenderCache.Builder(projection, transform)
-        resetHudScan()
-        buildTicks = 0
-    }
-
-    private fun stepRenderCacheBuild() {
-        val builder = renderCacheBuilder ?: return
-        val done = builder.step(CACHE_BUILD_BLOCKS_PER_TICK)
-        buildTicks++
-        if (done || buildTicks % CACHE_SNAPSHOT_INTERVAL_TICKS == 0 || renderCache.isEmpty) {
-            renderCache = builder.snapshot()
-            cachedTransform = builder.transform
-        }
-        if (done) {
-            renderCacheBuilder = null
-            sendClientMessage("投影缓存：共 ${renderCache.blockCount} 个方块，${renderCache.sections.size} 个区域")
-        }
     }
 
     private fun currentTransform(): LitematicLoader.Transform {
         return LitematicLoader.Transform(
-            origin = origin,
-            offsetX = offsetX.value,
-            offsetY = offsetY.value,
-            offsetZ = offsetZ.value,
-            rotation = rotate.value
+            origin = origin.offset(offsetX.value, offsetY.value, offsetZ.value),
+            rotation = when (rotate.value % 4) {
+                1 -> net.minecraft.world.level.block.Rotation.CLOCKWISE_90
+                2 -> net.minecraft.world.level.block.Rotation.CLOCKWISE_180
+                3 -> net.minecraft.world.level.block.Rotation.COUNTERCLOCKWISE_90
+                else -> net.minecraft.world.level.block.Rotation.NONE
+            }
         )
-    }
-
-    private fun scanBuiltBlocks() {
-        val cacheKey = "${renderCache.projectionName}|${renderCache.transform}|${renderCache.blockCount}|${renderCache.sections.size}"
-        if (renderCache.isEmpty) {
-            resetHudScan()
-            return
-        }
-        if (cacheKey != hudScanCacheKey) {
-            resetHudScan(cacheKey)
-        }
-
-        var remaining = BUILT_SCAN_BLOCKS_PER_TICK
-        while (remaining > 0 && hudScanSectionIndex < renderCache.sections.size) {
-            val section = renderCache.sections[hudScanSectionIndex]
-            while (remaining > 0 && hudScanBlockIndex < section.blocks.size) {
-                if (section.blocks[hudScanBlockIndex].status == LitematicLoader.BlockStatus.BUILT) {
-                    hudScanCount++
-                }
-                hudScanBlockIndex++
-                remaining--
-            }
-            if (hudScanBlockIndex >= section.blocks.size) {
-                hudScanBlockIndex = 0
-                hudScanSectionIndex++
-            }
-        }
-
-        if (hudScanSectionIndex >= renderCache.sections.size) {
-            hudBuiltCount = hudScanCount
-            hudScanCount = 0
-            hudScanSectionIndex = 0
-            hudScanBlockIndex = 0
-        }
     }
 
     private fun resetHudScan(cacheKey: String = "") {
@@ -514,7 +435,7 @@ class ANMapArt : ANBaseModule(
         val rawBlocks = projection.blocks
             .asSequence()
             .filterNot { it.state.isAir }
-            .map { PlaceBlock(transform.apply(it.relativePos), it.state) }
+            .map { PlaceBlock(transform.apply(it.pos), transform.applyState(it.state)) }
             .toList()
 
         if (rawBlocks.isEmpty()) {
@@ -558,7 +479,6 @@ class ANMapArt : ANBaseModule(
             if (placed >= blocksPerTick.value) break
             if (!canPlaceProjectionBlock(block)) continue
             if (placeProjectionBlock(block)) {
-                renderCache.markDirty(block.pos)
                 placed++
             }
         }
@@ -597,11 +517,11 @@ class ANMapArt : ANBaseModule(
         if (slot == Inventory.INVALID_SLOT) return false
 
         val swapType = if (slot in 0 until Inventory.HOTBAR_SIZE) SilentSwapType.HOTBAR else SilentSwapType.INVENTORY
-        val oldSelectedSlot = player.inventory.selectedSlot
+        val oldSelectedSlot = player.inventory.selected
         if (!Inventory.startSwap(slot, swapType)) return false
         val locallySwappedHotbar = swapType == SilentSwapType.HOTBAR && oldSelectedSlot != slot
         if (locallySwappedHotbar) {
-            player.inventory.selectedSlot = slot
+            player.inventory.selected = slot
         }
 
         return try {
@@ -615,7 +535,7 @@ class ANMapArt : ANBaseModule(
             true
         } finally {
             if (locallySwappedHotbar) {
-                player.inventory.selectedSlot = oldSelectedSlot
+                player.inventory.selected = oldSelectedSlot
             }
             Inventory.endSwap(swapType)
         }
@@ -660,7 +580,7 @@ class ANMapArt : ANBaseModule(
 
     private fun renderInfoPanelAt(context: ANGuiRenderContext, x: Float, y: Float) {
         val name = fitText(context, "项目: ${projection.name}", HUD_MAX_TEXT_WIDTH, HUD_TEXT_SCALE)
-        val author = fitText(context, "作者: ${projection.author}", HUD_MAX_TEXT_WIDTH, HUD_TEXT_SCALE)
+        val author = fitText(context, "总数: ${projection.blocks.size}", HUD_MAX_TEXT_WIDTH, HUD_TEXT_SCALE)
         val blocks = "已建: $hudBuiltCount / ${projection.blocks.size}"
         val placing = "自动放置: ${if (placingStarted) "运行中" else "空闲"}"
         val width = listOf(name, author, blocks, placing)
@@ -1009,11 +929,11 @@ class ANMapArt : ANBaseModule(
                     val maxAllowedStacks = (27 / totalColors).coerceIn(1, refillStacks.value)
                     val targetCount = maxAllowedStacks * 64
                     if (currentCount < targetCount) {
-                        mc.gameMode?.handleContainerInput(
+                        mc.gameMode?.handleInventoryMouseClick(
                             handler.containerId,
                             slot,
                             0,
-                            ContainerInput.QUICK_MOVE,
+                            ClickType.QUICK_MOVE,
                             player
                         )
                         movedAny = true

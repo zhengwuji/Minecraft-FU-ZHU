@@ -7,7 +7,7 @@ import anpilot.client.features.setting.ANSetting
 import net.minecraft.client.Minecraft
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket
 import net.minecraft.world.entity.EquipmentSlot
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.InventoryMenu
 import net.minecraft.world.item.Items
 
@@ -62,7 +62,7 @@ class ANElytraReplace : ANBaseModule(
         val minecraft = Minecraft.getInstance()
         val player = minecraft.player ?: return
         val gameMode = minecraft.gameMode ?: return
-        gameMode.handleContainerInput(player.containerMenu.containerId, menuSlotId, 0, ContainerInput.PICKUP, player)
+        gameMode.handleInventoryMouseClick(player.containerMenu.containerId, menuSlotId, 0, ClickType.PICKUP, player)
     }
 
     private class SearchInvResult(private val slot: Int, private val found: Boolean) {

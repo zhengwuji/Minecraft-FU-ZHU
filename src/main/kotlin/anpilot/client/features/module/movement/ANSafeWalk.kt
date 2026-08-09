@@ -35,7 +35,7 @@ class ANSafeWalk : ANBaseModule(
     }
 
     private fun isLeftShiftDown(): Boolean {
-        return InputConstants.isKeyDown(mc.window, InputConstants.KEY_LSHIFT)
+        return InputConstants.isKeyDown(mc.window.window, InputConstants.KEY_LSHIFT)
     }
 
     private companion object {

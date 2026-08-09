@@ -27,7 +27,7 @@ class ANLeaveInfo : ANBaseModule(
         val level = minecraft.level ?: return
 
         lastPing = minecraft.connection?.getPlayerInfo(player.uuid)?.latency ?: 0
-        lastDimension = level.dimension().registryKey().toString()
+        lastDimension = level.dimension().location().toString()
         lastPosition = "${player.blockX}, ${player.blockY}, ${player.blockZ}"
         ANLeaveGuiState.captureFromCurrentPlayer(minecraft)
     }

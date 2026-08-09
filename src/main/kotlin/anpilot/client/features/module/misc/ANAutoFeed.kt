@@ -10,19 +10,19 @@ import anpilot.client.features.module.ANWorldRenderModule
 import anpilot.client.features.setting.ANSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.client.multiplayer.ClientLevel
 import net.minecraft.core.BlockPos
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.animal.Animal
-import net.minecraft.world.entity.animal.cow.Cow
-import net.minecraft.world.entity.animal.cow.MushroomCow
-import net.minecraft.world.entity.animal.sheep.Sheep
-import net.minecraft.world.entity.animal.pig.Pig
-import net.minecraft.world.entity.animal.chicken.Chicken
-import net.minecraft.world.entity.animal.turtle.Turtle
+import net.minecraft.world.entity.animal.Cow
+import net.minecraft.world.entity.animal.MushroomCow
+import net.minecraft.world.entity.animal.Sheep
+import net.minecraft.world.entity.animal.Pig
+import net.minecraft.world.entity.animal.Chicken
+import net.minecraft.world.entity.animal.Turtle
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.phys.EntityHitResult
 import java.util.UUID
@@ -111,7 +111,7 @@ class ANAutoFeed : ANBaseModule(
         if (!hasFood) {
             val foodSlot = findFoodSlot(player, level)
             if (foodSlot != -1) {
-                player.inventory.selectedSlot = foodSlot
+                player.inventory.selected = foodSlot
                 mc.connection?.send(ServerboundSetCarriedItemPacket(foodSlot))
                 heldStack = player.inventory.getItem(foodSlot)
                 hasFood = true
@@ -137,17 +137,16 @@ class ANAutoFeed : ANBaseModule(
             if (heldStack.isEmpty || !target.isFood(heldStack)) break
 
             val box = target.boundingBox
-            val hitResult = EntityHitResult(target, box.center)
 
             fedCooldowns[uuid] = now
             feedableCache[uuid] = false
 
             try {
-                val rotations = RotationUtil.getRotationsTo(player.eyePosition, box.center)
+                val rotations = RotationUtil.getRotationsTo(player.getEyePosition(1.0f), box.center)
                 val rotation = Rotation(rotations[0], rotations[1])
                 ANServiceRegistry.runtime.rotationManager.setSilentRotation(rotation)
 
-                val actionResult = mc.gameMode?.interact(player, target, hitResult, InteractionHand.MAIN_HAND)
+                val actionResult = mc.gameMode?.interact(player, target, InteractionHand.MAIN_HAND)
                 if (actionResult?.consumesAction() == true) {
                     player.swing(InteractionHand.MAIN_HAND)
                 }

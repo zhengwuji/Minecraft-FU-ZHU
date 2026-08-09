@@ -4,7 +4,7 @@ import anpilot.client.api.module.ANModuleCategory
 import anpilot.client.features.module.ANBaseModule
 import anpilot.client.features.setting.ANSetting
 import net.minecraft.client.Minecraft
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.item.ItemStack
 
 class ANHotbarFill : ANBaseModule(
@@ -44,11 +44,11 @@ class ANHotbarFill : ANBaseModule(
 
             if (containerSlot == -1) continue
 
-            gameMode.handleContainerInput(
+            gameMode.handleInventoryMouseClick(
                 player.containerMenu.containerId,
                 containerSlot,
                 0,
-                ContainerInput.QUICK_MOVE,
+                ClickType.QUICK_MOVE,
                 player
             )
             lastMs = now
@@ -65,7 +65,7 @@ class ANHotbarFill : ANBaseModule(
         for (slot in 9 until 36) {
             val stack = inventory.getItem(slot)
             if (stack.isEmpty) continue
-            if (ItemStack.isSameItemSameComponents(stack, target)) return slot
+            if (ItemStack.isSameItemSameTags(stack, target)) return slot
         }
         return -1
     }

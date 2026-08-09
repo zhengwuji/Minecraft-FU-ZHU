@@ -1,11 +1,10 @@
 package anpilot.client.features.ai.task.autoenchant
 
-import net.minecraft.resources.ResourceKey
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.enchantment.Enchantment
 
 data class EnchantSpec(
-    val enchantment: ResourceKey<Enchantment>,
+    val enchantment: Enchantment,
     val level: Int?,
     val label: String,
     val applicableItems: List<Item>,

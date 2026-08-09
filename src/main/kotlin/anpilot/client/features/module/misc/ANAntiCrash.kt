@@ -5,12 +5,10 @@ import anpilot.client.api.module.ANModuleState
 import anpilot.client.features.event.ANEventHandler
 import anpilot.client.features.event.impl.PacketEvent
 import anpilot.client.features.module.ANBaseModule
-import anpilot.client.features.setting.ANSetting
 import net.minecraft.network.protocol.game.ClientboundExplodePacket
 import net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket
-import net.minecraft.world.phys.Vec3
 
 class ANAntiCrash : ANBaseModule(
     name = "AntiCrash",
@@ -24,15 +22,17 @@ class ANAntiCrash : ANBaseModule(
     fun onReceivePacket(event: PacketEvent.Receive) {
         when (val packet = event.packet) {
             is ClientboundExplodePacket -> {
-                val explodePos = packet.center
-                var playerKnockback = Vec3.ZERO
-                if (packet.playerKnockback.isPresent) {
-                    playerKnockback = packet.playerKnockback.get()
-                }
-                if (explodePos.x() > 30_000_000 || explodePos.y() > 30_000_000 || explodePos.z() > 30_000_000 ||
-                    explodePos.x() < -30_000_000 || explodePos.y() < -30_000_000 || explodePos.z() < -30_000_000 ||
-                    playerKnockback.x > 30_000_000 || playerKnockback.y > 30_000_000 || playerKnockback.z > 30_000_000 ||
-                    playerKnockback.x < -30_000_000 || playerKnockback.y < -30_000_000 || playerKnockback.z < -30_000_000
+                val x = packet.x
+                val y = packet.y
+                val z = packet.z
+                val kx = packet.knockbackX.toDouble()
+                val ky = packet.knockbackY.toDouble()
+                val kz = packet.knockbackZ.toDouble()
+
+                if (x > 30_000_000 || y > 30_000_000 || z > 30_000_000 ||
+                    x < -30_000_000 || y < -30_000_000 || z < -30_000_000 ||
+                    kx > 30_000_000 || ky > 30_000_000 || kz > 30_000_000 ||
+                    kx < -30_000_000 || ky < -30_000_000 || kz < -30_000_000
                 ) {
                     cancelPacket(event)
                 }
@@ -43,17 +43,21 @@ class ANAntiCrash : ANBaseModule(
                 }
             }
             is ClientboundPlayerPositionPacket -> {
-                val playerPos = packet.change.position()
-                if (playerPos.x > 30_000_000 || playerPos.y > 30_000_000 || playerPos.z > 30_000_000 ||
-                    playerPos.x < -30_000_000 || playerPos.y < -30_000_000 || playerPos.z < -30_000_000
+                val x = packet.x
+                val y = packet.y
+                val z = packet.z
+                if (x > 30_000_000 || y > 30_000_000 || z > 30_000_000 ||
+                    x < -30_000_000 || y < -30_000_000 || z < -30_000_000
                 ) {
                     cancelPacket(event)
                 }
             }
             is ClientboundSetEntityMotionPacket -> {
-                val movement = packet.movement
-                if (movement.x > 1000 || movement.y > 1000 || movement.z > 1000 ||
-                    movement.x < -1000 || movement.y < -1000 || movement.z < -1000
+                val xa = packet.xa
+                val ya = packet.ya
+                val za = packet.za
+                if (xa > 100_000 || ya > 100_000 || za > 100_000 ||
+                    xa < -100_000 || ya < -100_000 || za < -100_000
                 ) {
                     cancelPacket(event)
                 }

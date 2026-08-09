@@ -7,7 +7,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.world.phys.AABB
@@ -71,8 +71,8 @@ class ANTunnelESP : ANBaseModule(
             playerY = player.y,
             playerZ = player.z,
             range = range.value,
-            minY = max(level.getMinY() + 1, floor(player.y - yRange.value).toInt()),
-            maxY = minOf(level.getMaxY() - 3, ceil(player.y + yRange.value).toInt()),
+            minY = max(level.minBuildHeight + 1, floor(player.y - yRange.value).toInt()),
+            maxY = minOf(level.maxBuildHeight - 3, ceil(player.y + yRange.value).toInt()),
             minLength = minLength.value,
             limit = limitCount.value
         )

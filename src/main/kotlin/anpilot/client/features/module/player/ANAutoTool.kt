@@ -25,7 +25,7 @@ class ANAutoTool : ANBaseModule(
     override fun onDisable() {
         val player = Minecraft.getInstance().player ?: return
         if (oldSlot != -1) {
-            player.inventory.selectedSlot = oldSlot
+            player.inventory.selected = oldSlot
             oldSlot = -1
         }
     }
@@ -40,9 +40,9 @@ class ANAutoTool : ANBaseModule(
         if (state.isAir || state.getDestroySpeed(level, pos) < 0f) return
 
         val bestSlot = findBestTool(state)
-        if (bestSlot != -1 && bestSlot != player.inventory.selectedSlot) {
-            if (oldSlot == -1) oldSlot = player.inventory.selectedSlot
-            player.inventory.selectedSlot = bestSlot
+        if (bestSlot != -1 && bestSlot != player.inventory.selected) {
+            if (oldSlot == -1) oldSlot = player.inventory.selected
+            player.inventory.selected = bestSlot
             lastDigTime = System.currentTimeMillis()
         }
     }
@@ -57,7 +57,7 @@ class ANAutoTool : ANBaseModule(
         }
 
         if (oldSlot != -1 && System.currentTimeMillis() - lastDigTime > switchBackDelay) {
-            player.inventory.selectedSlot = oldSlot
+            player.inventory.selected = oldSlot
             oldSlot = -1
         }
     }

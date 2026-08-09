@@ -1,27 +1,17 @@
 package anpilot.client.renderer.render
 
-import anpilot.client.renderer.render.state.BlurRenderState
-import anpilot.client.renderer.render.state.DecorImageRenderState
-import anpilot.client.renderer.render.state.GradientRectangleRenderState
-import anpilot.client.renderer.render.state.ImageRectangleRenderState
-import anpilot.client.renderer.render.state.RoundedBorderRectangleRenderState
-import anpilot.client.renderer.render.state.RoundedGradientRectangleRenderState
-import anpilot.client.renderer.render.state.RoundedImageRectangleRenderState
-import anpilot.client.renderer.render.state.RoundedRectangleRenderState
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.navigation.ScreenRectangle
-import net.minecraft.resources.Identifier
-import kotlin.math.max
-import kotlin.math.min
+import net.minecraft.resources.ResourceLocation
 import kotlin.math.roundToInt
 
 object ANRender2DEngine {
-    fun blur(context: GuiGraphicsExtractor, x: Float, y: Float, width: Float, height: Float, radius: Float, tintColor: Int, scissorArea: ScreenRectangle? = null) {
-        blur(context, x, y, width, height, radius, radius, tintColor, scissorArea)
+    fun blur(context: GuiGraphics, x: Float, y: Float, width: Float, height: Float, radius: Float, tintColor: Int, scissorArea: ScreenRectangle? = null) {
+        rect(context, x, y, width, height, tintColor)
     }
 
     fun blur(
-        context: GuiGraphicsExtractor,
+        context: GuiGraphics,
         x: Float,
         y: Float,
         width: Float,
@@ -31,38 +21,20 @@ object ANRender2DEngine {
         tintColor: Int,
         scissorArea: ScreenRectangle? = null
     ) {
-        if (width <= 0f || height <= 0f || blurRadius <= 0f) {
-            return
-        }
-
-        context.guiRenderState.addGuiElement(
-            BlurRenderState(
-                context.pose(),
-                x,
-                y,
-                width,
-                height,
-                context.guiWidth(),
-                context.guiHeight(),
-                min(cornerRadius, min(width, height) / 2f),
-                max(0f, blurRadius),
-                tintColor,
-                scissorArea
-            )
-        )
+        rect(context, x, y, width, height, tintColor)
     }
 
-    fun rect(context: GuiGraphicsExtractor, x: Float, y: Float, width: Float, height: Float, color: Int) {
+    fun rect(context: GuiGraphics, x: Float, y: Float, width: Float, height: Float, color: Int) {
         context.fill(x.roundToInt(), y.roundToInt(), (x + width).roundToInt(), (y + height).roundToInt(), color)
     }
 
-    fun imageRect(context: GuiGraphicsExtractor, texture: Identifier, x: Float, y: Float, width: Float, height: Float, color: Int, scissorArea: ScreenRectangle? = null) {
-        imageRect(context, texture, x, y, width, height, 0f, 0f, 1f, 1f, color, scissorArea)
+    fun imageRect(context: GuiGraphics, texture: ResourceLocation, x: Float, y: Float, width: Float, height: Float, color: Int, scissorArea: ScreenRectangle? = null) {
+        context.blit(texture, x.roundToInt(), y.roundToInt(), 0f, 0f, width.roundToInt(), height.roundToInt(), width.roundToInt(), height.roundToInt())
     }
 
     fun imageRect(
-        context: GuiGraphicsExtractor,
-        texture: Identifier,
+        context: GuiGraphics,
+        texture: ResourceLocation,
         x: Float,
         y: Float,
         width: Float,
@@ -74,28 +46,12 @@ object ANRender2DEngine {
         color: Int,
         scissorArea: ScreenRectangle? = null
     ) {
-        if (width <= 0f || height <= 0f) return
-        context.guiRenderState.addGuiElement(
-            ImageRectangleRenderState(
-                context.pose(),
-                texture,
-                x,
-                y,
-                width,
-                height,
-                u0,
-                v0,
-                u1,
-                v1,
-                color,
-                scissorArea
-            )
-        )
+        context.blit(texture, x.roundToInt(), y.roundToInt(), u0, v0, width.roundToInt(), height.roundToInt(), width.roundToInt(), height.roundToInt())
     }
 
     fun roundedImageRect(
-        context: GuiGraphicsExtractor,
-        texture: Identifier,
+        context: GuiGraphics,
+        texture: ResourceLocation,
         x: Float,
         y: Float,
         width: Float,
@@ -104,137 +60,24 @@ object ANRender2DEngine {
         color: Int,
         scissorArea: ScreenRectangle? = null
     ) {
-        if (width <= 0f || height <= 0f) return
-        context.guiRenderState.addGuiElement(
-            RoundedImageRectangleRenderState(
-                context.pose(),
-                texture,
-                x,
-                y,
-                width,
-                height,
-                radius,
-                color,
-                scissorArea
-            )
-        )
+        imageRect(context, texture, x, y, width, height, color, scissorArea)
     }
 
-    fun decorImage(
-        context: GuiGraphicsExtractor,
-        texture: Identifier,
-        centerX: Float,
-        centerY: Float,
-        width: Float,
-        height: Float,
-        rotationDegrees: Float,
-        color: Int,
-        scissorArea: ScreenRectangle? = null
-    ) {
-        decorImage(context, texture, centerX, centerY, width, height, rotationDegrees, 0f, 0f, 1f, 1f, color, scissorArea)
-    }
-
-    fun decorImage(
-        context: GuiGraphicsExtractor,
-        texture: Identifier,
-        centerX: Float,
-        centerY: Float,
-        width: Float,
-        height: Float,
-        rotationDegrees: Float,
-        u0: Float,
-        v0: Float,
-        u1: Float,
-        v1: Float,
-        color: Int,
-        scissorArea: ScreenRectangle? = null
-    ) {
-        if (width <= 0f || height <= 0f) return
-        context.guiRenderState.addGuiElement(
-            DecorImageRenderState(
-                context.pose(),
-                texture,
-                centerX,
-                centerY,
-                width,
-                height,
-                rotationDegrees,
-                u0,
-                v0,
-                u1,
-                v1,
-                color,
-                scissorArea
-            )
-        )
-    }
-
-    fun gradientRect(
-        context: GuiGraphicsExtractor,
-        x: Float,
-        y: Float,
-        width: Float,
-        height: Float,
-        topLeftColor: Int,
-        topRightColor: Int,
-        bottomRightColor: Int,
-        bottomLeftColor: Int,
-        scissorArea: ScreenRectangle? = null
-    ) {
-        if (width <= 0f || height <= 0f) return
-        context.guiRenderState.addGuiElement(
-            GradientRectangleRenderState(
-                context.pose(),
-                x,
-                y,
-                width,
-                height,
-                topLeftColor,
-                topRightColor,
-                bottomRightColor,
-                bottomLeftColor,
-                scissorArea
-            )
-        )
-    }
-
-    fun roundedGradientRect(
-        context: GuiGraphicsExtractor,
+    fun roundedRect(
+        context: GuiGraphics,
         x: Float,
         y: Float,
         width: Float,
         height: Float,
         radius: Float,
-        topLeftColor: Int,
-        topRightColor: Int,
-        bottomRightColor: Int,
-        bottomLeftColor: Int,
+        color: Int,
         scissorArea: ScreenRectangle? = null
     ) {
-        if (width <= 0f || height <= 0f) return
-        context.guiRenderState.addGuiElement(
-            RoundedGradientRectangleRenderState(
-                context.pose(),
-                x,
-                y,
-                width,
-                height,
-                min(radius, min(width, height) / 2f),
-                topLeftColor,
-                topRightColor,
-                bottomRightColor,
-                bottomLeftColor,
-                scissorArea
-            )
-        )
-    }
-
-    fun roundedRect(context: GuiGraphicsExtractor, x: Float, y: Float, width: Float, height: Float, radius: Float, color: Int, scissorArea: ScreenRectangle? = null) {
-        borderedRoundedRect(context, x, y, width, height, radius, 0f, color, color, scissorArea)
+        rect(context, x, y, width, height, color)
     }
 
     fun borderedRoundedRect(
-        context: GuiGraphicsExtractor,
+        context: GuiGraphics,
         x: Float,
         y: Float,
         width: Float,
@@ -245,25 +88,12 @@ object ANRender2DEngine {
         borderColor: Int,
         scissorArea: ScreenRectangle? = null
     ) {
-        if (width <= 0f || height <= 0f) return
-        context.guiRenderState.addGuiElement(
-            RoundedBorderRectangleRenderState(
-                context.pose(),
-                x,
-                y,
-                width,
-                height,
-                min(radius, min(width, height) / 2f),
-                max(0f, borderWidth),
-                fillColor,
-                borderColor,
-                scissorArea
-            )
-        )
+        rect(context, x, y, width, height, borderColor)
+        rect(context, x + borderWidth, y + borderWidth, width - borderWidth * 2f, height - borderWidth * 2f, fillColor)
     }
 
     fun glowingRoundedRect(
-        context: GuiGraphicsExtractor,
+        context: GuiGraphics,
         x: Float,
         y: Float,
         width: Float,
@@ -274,11 +104,12 @@ object ANRender2DEngine {
         glowColor: Int,
         scissorArea: ScreenRectangle? = null
     ) {
-        roundedRectWithGlow(context, x, y, width, height, radius, 0f, color, color, glowRadius, glowColor, scissorArea)
+        rect(context, x - glowRadius, y - glowRadius, width + glowRadius * 2f, height + glowRadius * 2f, glowColor)
+        rect(context, x, y, width, height, color)
     }
 
     fun roundedRectWithGlow(
-        context: GuiGraphicsExtractor,
+        context: GuiGraphics,
         x: Float,
         y: Float,
         width: Float,
@@ -291,27 +122,52 @@ object ANRender2DEngine {
         glowColor: Int,
         scissorArea: ScreenRectangle? = null
     ) {
-        val clampedRadius = min(radius, min(width, height) / 2f)
-        if (clampedRadius <= 0f && glowRadius <= 0f && borderWidth <= 0f) {
-            rect(context, x, y, width, height, fillColor)
-            return
-        }
+        rect(context, x - glowRadius, y - glowRadius, width + glowRadius * 2f, height + glowRadius * 2f, glowColor)
+        borderedRoundedRect(context, x, y, width, height, radius, borderWidth, fillColor, borderColor, scissorArea)
+    }
 
-        context.guiRenderState.addGuiElement(
-            RoundedRectangleRenderState(
-                context.pose(),
-                x,
-                y,
-                width,
-                height,
-                clampedRadius,
-                max(0f, borderWidth),
-                fillColor,
-                borderColor,
-                max(0f, glowRadius),
-                glowColor,
-                scissorArea
-            )
-        )
+    fun gradientRect(
+        context: GuiGraphics,
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float,
+        topLeftColor: Int,
+        topRightColor: Int,
+        bottomRightColor: Int,
+        bottomLeftColor: Int,
+        scissorArea: ScreenRectangle? = null
+    ) {
+        context.fillGradient(x.roundToInt(), y.roundToInt(), (x + width).roundToInt(), (y + height).roundToInt(), topLeftColor, bottomRightColor)
+    }
+
+    fun roundedGradientRect(
+        context: GuiGraphics,
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float,
+        radius: Float,
+        topLeftColor: Int,
+        topRightColor: Int,
+        bottomRightColor: Int,
+        bottomLeftColor: Int,
+        scissorArea: ScreenRectangle? = null
+    ) {
+        gradientRect(context, x, y, width, height, topLeftColor, topRightColor, bottomRightColor, bottomLeftColor, scissorArea)
+    }
+
+    fun roundedBorderDecor(
+        context: GuiGraphics,
+        texture: ResourceLocation,
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float,
+        radius: Float,
+        options: ANProceduralDecorRenderer.RoundedBorderDecorOptions,
+        scissorArea: ScreenRectangle? = null
+    ) {
+        rect(context, x, y, width, height, options.color)
     }
 }

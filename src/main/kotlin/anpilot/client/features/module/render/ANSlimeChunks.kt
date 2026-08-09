@@ -50,7 +50,7 @@ class ANSlimeChunks : ANBaseModule(
         
         val r = radius.value
         
-        val minY = level.minY.toDouble()
+        val minY = level.minBuildHeight.toDouble()
         val maxY = 40.0 
         
         for (x in chunkX - r..chunkX + r) {

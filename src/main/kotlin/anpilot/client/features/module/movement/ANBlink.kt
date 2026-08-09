@@ -105,7 +105,7 @@ class ANBlink : ANBaseModule(
             inventory.replaceWith(player.inventory)
 
             unsetRemoved()
-            level.addEntity(this)
+            level.addPlayer(this.id, this)
         }
 
         override fun getPlayerInfo(): PlayerInfo? {

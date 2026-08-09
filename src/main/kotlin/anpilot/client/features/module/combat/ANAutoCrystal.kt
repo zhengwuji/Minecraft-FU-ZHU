@@ -21,7 +21,7 @@ import anpilot.client.features.utility.CrystalUtils
 import anpilot.client.features.utility.ExplosionUtils
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -35,11 +35,11 @@ import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.ambient.AmbientCreature
 import net.minecraft.world.entity.animal.Animal
-import net.minecraft.world.entity.animal.fish.WaterAnimal
-import net.minecraft.world.entity.animal.golem.AbstractGolem
+import net.minecraft.world.entity.animal.WaterAnimal
+import net.minecraft.world.entity.animal.AbstractGolem
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal
 import net.minecraft.world.entity.monster.Monster
-import net.minecraft.world.entity.npc.villager.AbstractVillager
+import net.minecraft.world.entity.npc.AbstractVillager
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.BlockItem
 import net.minecraft.world.item.Items

@@ -1,8 +1,6 @@
 package anpilot.client.renderer.font
 
 import com.mojang.blaze3d.platform.NativeImage
-import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.textures.FilterMode
 import net.minecraft.client.renderer.texture.DynamicTexture
 import org.lwjgl.BufferUtils
 import org.lwjgl.stb.STBTTPackContext
@@ -27,13 +25,11 @@ class ANStbFontAtlas private constructor(
     private val glyphs = HashMap<Int, ANGlyph>()
     private val failedGlyphs = HashSet<Int>()
     private val nativeImage = NativeImage(atlasSize, atlasSize, false)
-    private val texture = DynamicTexture({ "anpilot-font-atlas" }, nativeImage)
+    private val texture = DynamicTexture(nativeImage)
     private val scale: Float
     private val ascent: Float
     private var dirty = false
 
-    val textureView get() = texture.textureView
-    val sampler get() = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR)
     val height: Int get() = (pixelHeight * renderScale).toInt()
 
     init {
@@ -130,7 +126,7 @@ class ANStbFontAtlas private constructor(
             val row = y * atlasSize
             for (x in startX until endX) {
                 val alpha = bitmap.get(row + x).toInt() and 255
-                nativeImage.setPixel(x, y, (alpha shl 24) or 0xFFFFFF)
+                nativeImage.setPixelRGBA(x, y, (alpha shl 24) or 0xFFFFFF)
             }
         }
     }

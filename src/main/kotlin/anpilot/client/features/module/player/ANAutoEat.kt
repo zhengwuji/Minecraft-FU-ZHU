@@ -4,7 +4,6 @@ import anpilot.client.api.module.ANModuleCategory
 import anpilot.client.features.module.ANBaseModule
 import anpilot.client.features.setting.ANSetting
 import net.minecraft.client.Minecraft
-import net.minecraft.core.component.DataComponents
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -22,7 +21,6 @@ class ANAutoEat : ANBaseModule(
 
     private var eating = false
     private var prevSlot = -1
-
 
     override fun onTick() {
         val minecraft = Minecraft.getInstance()
@@ -62,7 +60,7 @@ class ANAutoEat : ANBaseModule(
         minecraft.options.keyUse.isDown = false
 
         if (swapBack.value && prevSlot != -1) {
-            player.inventory.selectedSlot = prevSlot
+            player.inventory.selected = prevSlot
             minecraft.connection?.send(ServerboundSetCarriedItemPacket(prevSlot))
             prevSlot = -1
         }
@@ -74,8 +72,8 @@ class ANAutoEat : ANBaseModule(
         for (slot in 0 until 9) {
             val stack = player.inventory.getItem(slot)
             if (!isGoodFood(stack)) continue
-            if (prevSlot == -1) prevSlot = player.inventory.selectedSlot
-            player.inventory.selectedSlot = slot
+            if (prevSlot == -1) prevSlot = player.inventory.selected
+            player.inventory.selected = slot
             minecraft.connection?.send(ServerboundSetCarriedItemPacket(slot))
             return true
         }
@@ -83,7 +81,7 @@ class ANAutoEat : ANBaseModule(
     }
 
     private fun isGoodFood(stack: ItemStack): Boolean {
-        if (!stack.components.has(DataComponents.FOOD)) return false
+        if (!stack.isEdible) return false
         val item: Item = stack.item
         if (!gapple.value && (item == Items.GOLDEN_APPLE || item == Items.ENCHANTED_GOLDEN_APPLE)) return false
         return true

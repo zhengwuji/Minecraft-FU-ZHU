@@ -82,10 +82,10 @@ class AuxiliaryBlockTask(agent: ANAgent, val targetPos: BlockPos) : AITask(agent
                     }
                 } else {
                     BaritoneHelper.cancel()
-                    val oldSlot = player.inventory.selectedSlot
-                    player.inventory.selectedSlot = slot
+                    val oldSlot = player.inventory.selected
+                    player.inventory.selected = slot
                     placeBlockManually(aux, player)
-                    player.inventory.selectedSlot = oldSlot
+                    player.inventory.selected = oldSlot
                 }
             }
             1 -> {

@@ -90,8 +90,8 @@ class FlyToLandingTask(agent: ANAgent) : AITask(agent) {
     private fun findSafeFeetPos(x: Int, z: Int): BlockPos? {
         val level = ANAgent.minecraft.level ?: return null
         val player = player ?: return null
-        val topY = minOf(player.blockY - 1, level.getMaxY() - 1)
-        for (y in topY downTo level.getMinY()) {
+        val topY = minOf(player.blockY - 1, level.maxBuildHeight - 1)
+        for (y in topY downTo level.minBuildHeight) {
             val ground = BlockPos(x, y, z)
             if (!isSolid(ground)) continue
             val feet = ground.above()

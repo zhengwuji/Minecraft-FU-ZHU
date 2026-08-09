@@ -8,7 +8,7 @@ import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.features.setting.impl.ItemSelectSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.world.level.Level
@@ -80,8 +80,8 @@ class ANBlockESP : ANBaseModule(
             playerY = player.y,
             playerZ = player.z,
             range = range.value,
-            minY = level.getMinY() + 1,
-            maxY = level.getMaxY() - 1,
+            minY = level.minBuildHeight + 1,
+            maxY = level.maxBuildHeight - 1,
             dimension = level.dimension(),
             selectedIds = selectedBlocks.value.getItemsById().toSet(),
             includeIllegals = illegals.value,

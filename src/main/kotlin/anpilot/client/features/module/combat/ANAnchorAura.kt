@@ -16,7 +16,7 @@ import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.features.utility.ExplosionUtils
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
@@ -286,7 +286,7 @@ class ANAnchorAura : ANBaseModule(
     private fun useSlot(slot: Int, action: () -> Unit): Boolean {
         val player = mc.player ?: return false
         val swapped = when {
-            slot == player.inventory.selectedSlot -> true
+            slot == player.inventory.selected -> true
             silentSwap.value -> Inventory.startSwap(slot)
             autoSwap.value -> Inventory.swap(slot, swapBack.value)
             else -> false
@@ -296,7 +296,7 @@ class ANAnchorAura : ANBaseModule(
         try {
             action()
         } finally {
-            if (slot != player.inventory.selectedSlot) {
+            if (slot != player.inventory.selected) {
                 if (silentSwap.value) {
                     Inventory.endSwap()
                 } else if (autoSwap.value && swapBack.value) {
@@ -389,7 +389,7 @@ class ANAnchorAura : ANBaseModule(
     private fun getAnchorSlot(): Int {
         val player = mc.player ?: return Inventory.INVALID_SLOT
         for (slot in 0 until Inventory.HOTBAR_SIZE) {
-            if (player.inventory.getItem(slot).`is`(Items.RESPAWN_ANCHOR)) return slot
+            if (player.inventory.getItem(slot).`is`(Blocks.RESPAWN_ANCHOR.asItem())) return slot
         }
         return Inventory.INVALID_SLOT
     }
@@ -404,7 +404,7 @@ class ANAnchorAura : ANBaseModule(
 
     private fun getExplodeSlot(): Int {
         val player = mc.player ?: return Inventory.INVALID_SLOT
-        val selected = player.inventory.selectedSlot
+        val selected = player.inventory.selected
         val selectedStack = player.inventory.getItem(selected)
         if (!selectedStack.`is`(Items.GLOWSTONE)) return selected
 

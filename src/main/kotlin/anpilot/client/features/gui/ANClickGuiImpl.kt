@@ -12,7 +12,7 @@ import anpilot.client.features.module.anpilot.ANTheme
 import com.mojang.blaze3d.platform.NativeImage
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.texture.DynamicTexture
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 import org.slf4j.LoggerFactory
 import java.awt.Color
 import java.awt.image.BufferedImage
@@ -26,8 +26,8 @@ class ANClickGuiImpl(private val moduleRegistry: ANModuleRegistry) : ANClickGui 
     private var fullscreenButtonBounds: Rect? = null
 
     private companion object {
-        private val FALLBACK_BACKGROUND_IMAGE = Identifier.fromNamespaceAndPath("anpilotclient", "textures/customimage/anpilotclient.png")
-        private val CUSTOM_BACKGROUND_IMAGE = Identifier.fromNamespaceAndPath("anpilotclient", "custom_background/click_gui")
+        private val FALLBACK_BACKGROUND_IMAGE = Identifier("anpilotclient", "textures/customimage/anpilotclient.png")
+        private val CUSTOM_BACKGROUND_IMAGE = Identifier("anpilotclient", "custom_background/click_gui")
         private val logger = LoggerFactory.getLogger("ANClickGui")
         private const val BACKGROUND_FILE_NAME = "anpilotclient.png"
         private const val PANEL_GAP = 6f
@@ -46,6 +46,7 @@ class ANClickGuiImpl(private val moduleRegistry: ANModuleRegistry) : ANClickGui 
     }
 
     override fun render(context: ANGuiRenderContext, mouseX: Int, mouseY: Int, deltaTicks: Float) {
+        anpilot.client.features.gui.component.ANTooltipManager.clear()
         val categories = visibleCategories()
         val panelWidth = adaptivePanelWidth(context)
         val panelHeight = adaptivePanelHeight(context)
@@ -90,6 +91,7 @@ class ANClickGuiImpl(private val moduleRegistry: ANModuleRegistry) : ANClickGui 
         layoutPanels(guiPanels, contentX, contentY, grid, layoutScale)
         guiPanels.forEach { it.render(context, mouseX, mouseY, deltaTicks) }
         backgroundBounds?.let { drawFullscreenButton(context, mouseX, mouseY, it) }
+        anpilot.client.features.gui.component.ANTooltipManager.renderTooltip(context)
     }
 
     override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
@@ -221,14 +223,14 @@ class ANClickGuiImpl(private val moduleRegistry: ANModuleRegistry) : ANClickGui 
             val image = readBackgroundImage(file)
             Minecraft.getInstance().textureManager.register(
                 CUSTOM_BACKGROUND_IMAGE,
-                DynamicTexture({ "ANPilot Custom ClickGUI Background" }, image)
+                DynamicTexture(image)
             )
             loadedBackgroundFile = file
             loadedBackgroundModified = modified
             logger.info("Loaded custom ClickGUI background: {}", file.absolutePath)
             CUSTOM_BACKGROUND_IMAGE
         }.getOrElse {
-            logger.warn("Failed to load custom ClickGUI background: {}", file.absolutePath, it)
+            logger.warn("Failed to load custom ClickGUI background: ${file.absolutePath}", it)
             FALLBACK_BACKGROUND_IMAGE
         }
     }
@@ -248,7 +250,7 @@ class ANClickGuiImpl(private val moduleRegistry: ANModuleRegistry) : ANClickGui 
         val image = NativeImage(argb.width, argb.height, false)
         for (y in 0 until argb.height) {
             for (x in 0 until argb.width) {
-                image.setPixel(x, y, argb.getRGB(x, y))
+                image.setPixelRGBA(x, y, argb.getRGB(x, y))
             }
         }
         return image

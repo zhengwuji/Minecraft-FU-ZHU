@@ -1,83 +1,93 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-
 plugins {
-	id("net.fabricmc.fabric-loom")
+	id("dev.architectury.loom") version "1.7.435"
 	`maven-publish`
-	id("org.jetbrains.kotlin.jvm") version "2.3.21"
+	id("org.jetbrains.kotlin.jvm") version "1.9.23"
 }
 
 version = providers.gradleProperty("mod_version").get()
 group = providers.gradleProperty("maven_group").get()
 
-repositories {
+loom {
+	forge {
+		mixinConfig("anpilotclient.mixins.json")
+	}
+}
 
+repositories {
+	mavenCentral()
+	maven {
+		name = "Architectury"
+		url = uri("https://maven.architectury.dev/")
+	}
+	maven {
+		name = "MinecraftForge"
+		url = uri("https://maven.minecraftforge.net/")
+	}
+	maven {
+		name = "KotlinForForge"
+		url = uri("https://thedarkcolour.github.io/KotlinForForge/")
+	}
 	maven {
 		name = "Modrinth"
 		url = uri("https://api.modrinth.com/maven")
 	}
-
-	maven {
-		name = "meteor-maven"
-		url = uri("https://maven.meteordev.org/releases")
-	}
-	maven {
-		name = "meteor-maven-snapshots"
-		url = uri("https://maven.meteordev.org/snapshots")
-	}
 }
 
 dependencies {
-	// To change the versions see the gradle.properties file
-	minecraft("com.mojang:minecraft:${providers.gradleProperty("minecraft_version").get()}")
+	minecraft("com.mojang:minecraft:1.20.1")
+	mappings(loom.officialMojangMappings())
 
-	implementation("net.fabricmc:fabric-loader:${providers.gradleProperty("loader_version").get()}")
-	implementation("net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty("fabric_api_version").get()}")
+	"forge"("net.minecraftforge:forge:1.20.1-47.1.3")
 
-	// Fabric API. This is technically optional, but you probably want it anyway.
-	implementation("maven.modrinth:sodium:mc26.1.1-0.8.9-fabric")
-	implementation("net.fabricmc:fabric-language-kotlin:${providers.gradleProperty("fabric_kotlin_version").get()}")
-
-	compileOnly("meteordevelopment:baritone:26.1-SNAPSHOT")
+	implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.23")
+	implementation("org.jetbrains.kotlin:kotlin-reflect:1.9.23")
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 }
 
 tasks.processResources {
 	val version = version
 	inputs.property("version", version)
 
-	filesMatching("fabric.mod.json") {
+	filesMatching("META-INF/mods.toml") {
 		expand("version" to version)
 	}
 }
 
 tasks.withType<JavaCompile>().configureEach {
-	options.release = 25
+	options.release = 17
 }
 
 kotlin {
 	compilerOptions {
-		jvmTarget = JvmTarget.JVM_25
+		jvmTarget = JvmTarget.JVM_17
 	}
 }
 
 java {
-
 	withSourcesJar()
-
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
 }
 
 tasks.jar {
 	val projectName = project.name
 	inputs.property("projectName", projectName)
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+	from({
+		configurations.runtimeClasspath.get()
+			.filter { it.name.contains("kotlin") }
+			.map { if (it.isDirectory) it else zipTree(it) }
+	}) {
+		exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+	}
 
 	from("LICENSE") {
 		rename { "${it}_$projectName" }
 	}
-
 }
-
 
 publishing {
 	publications {
@@ -86,4 +96,3 @@ publishing {
 		}
 	}
 }
-

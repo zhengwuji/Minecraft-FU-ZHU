@@ -13,7 +13,7 @@ import net.minecraft.core.Direction
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.ChestMenu
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.ShulkerBoxMenu
 import net.minecraft.world.item.Item
 import net.minecraft.world.phys.BlockHitResult
@@ -144,7 +144,7 @@ class CollectMaterialsTask(agent: ANAgent) : AITask(agent) {
                     return
                 }
 
-                mc.gameMode?.handleContainerInput(menu.containerId, slot, 0, ContainerInput.QUICK_MOVE, player)
+                mc.gameMode?.handleInventoryMouseClick(menu.containerId, slot, 0, ClickType.QUICK_MOVE, player)
                 setCooldown(200)
 
                 if (isCurrentRequestComplete(module)) {

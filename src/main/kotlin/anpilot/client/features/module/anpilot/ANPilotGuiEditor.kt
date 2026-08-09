@@ -28,7 +28,7 @@ class ANPilotGuiEditor : ANBaseModule(
         DECOR
     }
 
-    val language = addSetting(ANSetting("Language", Language.English))
+    val language = addSetting(ANSetting("Language", Language.Chinese))
     val animations = addSetting(ANSetting("Animations", false))
     val groupSelect = addSetting(ANSetting("Pages", Group.FILL))
 
@@ -40,26 +40,26 @@ class ANPilotGuiEditor : ANBaseModule(
     val btnFill = addSetting(ANSetting("BtnFill", ColorGroupSetting(Color(0xCC4A183C.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val btnBorder = addSetting(ANSetting("BtnBorder", ColorGroupSetting(Color(0xD9FF8CC8.toInt(), true).rgb)) { groupSelect.value == Group.BORDER })
     val btnHoverFill = addSetting(ANSetting("BtnHoverFill", ColorGroupSetting(Color(0xE0722A5B.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
-    val btnOnFill = addSetting(ANSetting("BtnOnFill", ColorGroupSetting(Color(0xE0E13B8B.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
-    val btnOnBorder = addSetting(ANSetting("BtnOnBorder", ColorGroupSetting(Color(0xFFFFA6D8.toInt(), true).rgb)) { groupSelect.value == Group.BORDER })
+    val btnOnFill = addSetting(ANSetting("BtnOnFill", ColorGroupSetting(Color(0xE01D4ED8.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
+    val btnOnBorder = addSetting(ANSetting("BtnOnBorder", ColorGroupSetting(Color(0xFF60A5FA.toInt(), true).rgb)) { groupSelect.value == Group.BORDER })
     val btnText = addSetting(ANSetting("BtnText", ColorGroupSetting(Color(0xFFFFEEF7.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val btnOffText = addSetting(ANSetting("BtnOffText", ColorGroupSetting(Color(0xC7FFEAF6.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val btnDot = addSetting(ANSetting("BtnDot", ColorGroupSetting(Color(0xFFFF8CC8.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
-    val btnOnDot = addSetting(ANSetting("BtnOnDot", ColorGroupSetting(Color(0xFFFFD0EA.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
+    val btnOnDot = addSetting(ANSetting("BtnOnDot", ColorGroupSetting(Color(0xFF93C5FD.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val descFill = addSetting(ANSetting("DescFill", ColorGroupSetting(Color(0xE6260B20.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val descText = addSetting(ANSetting("DescText", ColorGroupSetting(Color(0xFFFFEAF6.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
 
     val setText = addSetting(ANSetting("SetText", ColorGroupSetting(Color(0xFFFFEAF6.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val setCtrlFill = addSetting(ANSetting("SetCtrlFill", ColorGroupSetting(Color(0xCC3A1230.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val setCtrlBorder = addSetting(ANSetting("SetCtrlBorder", ColorGroupSetting(Color(0xD9FF8CC8.toInt(), true).rgb)) { groupSelect.value == Group.BORDER })
-    val setAccent = addSetting(ANSetting("SetAccent", ColorGroupSetting(Color(0xFFFFA6D8.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
+    val setAccent = addSetting(ANSetting("SetAccent", ColorGroupSetting(Color(0xFF60A5FA.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val setMutedText = addSetting(ANSetting("SetMutedText", ColorGroupSetting(Color(0xA6FFEAF6.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
 
     val selFill = addSetting(ANSetting("SelFill", ColorGroupSetting(Color(0xCC3A1230.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
     val selBorder = addSetting(ANSetting("SelBorder", ColorGroupSetting(Color(0xD9FF8CC8.toInt(), true).rgb)) { groupSelect.value == Group.BORDER })
     val selHoverFill = addSetting(ANSetting("SelHoverFill", ColorGroupSetting(Color(0xE0722A5B.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
-    val selOnFill = addSetting(ANSetting("SelOnFill", ColorGroupSetting(Color(0xE0E13B8B.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
-    val selOnBorder = addSetting(ANSetting("SelOnBorder", ColorGroupSetting(Color(0xFFFFA6D8.toInt(), true).rgb)) { groupSelect.value == Group.BORDER })
+    val selOnFill = addSetting(ANSetting("SelOnFill", ColorGroupSetting(Color(0xE01D4ED8.toInt(), true).rgb)) { groupSelect.value == Group.FILL })
+    val selOnBorder = addSetting(ANSetting("SelOnBorder", ColorGroupSetting(Color(0xFF60A5FA.toInt(), true).rgb)) { groupSelect.value == Group.BORDER })
 
     val panelRadius = addSetting(ANSetting("PanelRadius", 13f, 1f, 20f) { groupSelect.value == Group.RADIUS })
     val btnRadius = addSetting(ANSetting("BtnRadius", 8f, 1f, 10f) { groupSelect.value == Group.RADIUS })
@@ -79,7 +79,7 @@ class ANPilotGuiEditor : ANBaseModule(
     val decorSeed = addSetting(ANSetting("DecorSeed", 13579, 0, 999999) { groupSelect.value == Group.DECOR && decorEnabled.value })
 
     init {
-        setBind(InputConstants.KEY_RSHIFT, false)
+        setBind(InputConstants.KEY_F4, false)
         activeLanguageSetting = language
         activeAnimationsSetting = animations
         syncToTheme()
@@ -89,7 +89,7 @@ class ANPilotGuiEditor : ANBaseModule(
 
     fun ensureDefaultBind() {
         if (getBind().key == -1) {
-            setBind(InputConstants.KEY_RSHIFT, false)
+            setBind(InputConstants.KEY_F4, false)
         }
     }
 

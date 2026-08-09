@@ -2,10 +2,10 @@ package anpilot.client.renderer
 
 import anpilot.client.renderer.render.ANRender2DEngine
 import anpilot.client.renderer.render.ANProceduralDecorRenderer
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import anpilot.client.compat.GuiGraphicsExtractor
 import net.minecraft.client.gui.navigation.ScreenRectangle
 import net.minecraft.client.gui.screens.inventory.InventoryScreen
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 import net.minecraft.world.entity.LivingEntity
 import java.awt.Color
 
@@ -186,6 +186,6 @@ object ANGUIRenderer {
         mouseY: Float,
         entity: LivingEntity
     ) {
-        InventoryScreen.extractEntityInInventoryFollowsMouse(context, x, y, width, height, size, 0.0625f, mouseX, mouseY, entity)
+        InventoryScreen.renderEntityInInventoryFollowsMouse(context, x + width / 2, y + height, size, (x + width / 2).toFloat() - mouseX, (y + height / 2).toFloat() - mouseY, entity)
     }
 }

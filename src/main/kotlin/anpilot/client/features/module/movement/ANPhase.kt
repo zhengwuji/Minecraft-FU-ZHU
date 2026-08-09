@@ -76,7 +76,7 @@ class ANPhase : ANBaseModule(
         val pearlSlot = findPearlHotbarSlot()
         if (pearlSlot == Inventory.INVALID_SLOT) return
 
-        val previousSlot = player.inventory.selectedSlot
+        val previousSlot = player.inventory.selected
         Inventory.switchTo(pearlSlot)
         gameMode.useItem(player, InteractionHand.MAIN_HAND)
         connection.send(ServerboundSwingPacket(InteractionHand.MAIN_HAND))
@@ -134,7 +134,7 @@ class ANPhase : ANBaseModule(
     private fun findPearlHotbarSlot(): Int {
         val player = mc.player ?: return Inventory.INVALID_SLOT
         if (player.mainHandItem.`is`(Items.ENDER_PEARL)) {
-            return player.inventory.selectedSlot
+            return player.inventory.selected
         }
 
         for (slot in 0 until Inventory.HOTBAR_SIZE) {

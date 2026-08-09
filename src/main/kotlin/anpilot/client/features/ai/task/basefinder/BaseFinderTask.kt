@@ -195,7 +195,7 @@ class BaseFinderTask(agent: ANAgent, private val module: ANBaseFinder) : AITask(
         val level = ANAgent.minecraft.level ?: return
         repeat(module.chunksPerTick.value.toInt()) {
             val chunkPos = pendingChunks.removeFirstOrNull() ?: return
-            val key = chunkKey(chunkPos.x(), chunkPos.z())
+            val key = chunkKey(chunkPos.x, chunkPos.z)
             queuedChunks.remove(key)
             if (key in session.scannedChunks) return@repeat
             val result = BaseFinderScanner.scan(level, chunkPos)
@@ -211,8 +211,8 @@ class BaseFinderTask(agent: ANAgent, private val module: ANBaseFinder) : AITask(
         if (reasons.isEmpty()) return
 
         val level = ANAgent.minecraft.level ?: return
-        val dimension = level.dimension().identifier().toString()
-        val detectionKey = "$dimension:${result.chunkPos.x()}:${result.chunkPos.z()}:${reasons.sorted().joinToString("+")}"
+        val dimension = level.dimension().location().toString()
+        val detectionKey = "$dimension:${result.chunkPos.x}:${result.chunkPos.z}:${reasons.sorted().joinToString("+")}"
         if (detectionKey in session.detectionKeys) return
         session.detectionKeys += detectionKey
         val detectionPos = detectionPos(result)

@@ -1,7 +1,7 @@
 package anpilot.client.minecraft.duck;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 
 public interface ANChatGraphicsAccessExt {
-    GuiGraphicsExtractor anpilot$getGraphics();
+    GuiGraphics anpilot$getGraphics();
 }

@@ -107,22 +107,11 @@ import anpilot.client.features.module.render.ANSlimeChunks
 import anpilot.client.features.module.movement.ANSafeWalk
 import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.Bind
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents
 import net.minecraft.client.Minecraft
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
-import net.minecraft.ChatFormatting
-import net.minecraft.network.chat.Component
+import anpilot.client.compat.LevelRenderContext
 
 class ANModuleManager : ANModuleRegistry {
-
     fun register() {
-        ClientPlayConnectionEvents.JOIN.register { handler, sender, client ->
-            val player = client.player ?: Minecraft.getInstance().player ?: return@register
-            player.sendSystemMessage(
-                Component.literal("ANPilot飞行员客户端：").withStyle(ChatFormatting.GREEN)
-                    .append(Component.literal("“${player.name.string}” ！！").withStyle(ChatFormatting.LIGHT_PURPLE))
-            )
-        }
     }
 
 

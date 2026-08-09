@@ -12,9 +12,8 @@ import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.render.ANRender2DEngine
 import anpilot.client.renderer.font.ANFontRenderer
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.GuiGraphicsExtractor
-import net.minecraft.client.renderer.RenderPipelines
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.GuiGraphicsExtractor
+import anpilot.client.compat.Identifier
 import net.minecraft.sounds.SoundEvents
 import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.player.Player
@@ -90,7 +89,7 @@ class ANNotifier : ANBaseModule(
                     type = NotificationType.PLAYER_ENTER,
                     detail = entered.name.string,
                     stack = ItemStack.EMPTY,
-                    skinTexture = minecraft.connection?.getPlayerInfo(entered.uuid)?.skin?.body()?.texturePath(),
+                    skinTexture = minecraft.connection?.getPlayerInfo(entered.uuid)?.skinLocation,
                     sound = SoundEvents.EXPERIENCE_ORB_PICKUP,
                     volume = 1f,
                     pitch = 1f,
@@ -273,18 +272,18 @@ class ANNotifier : ANBaseModule(
 
     private fun drawHead(context: GuiGraphicsExtractor, texture: Identifier, x: Float, y: Float, size: Float) {
         val drawSize = size.roundToInt()
-        context.blit(RenderPipelines.GUI_TEXTURED, texture, x.roundToInt(), y.roundToInt(), 8f, 8f, drawSize, drawSize, 8, 8, 64, 64)
-        context.blit(RenderPipelines.GUI_TEXTURED, texture, x.roundToInt(), y.roundToInt(), 40f, 8f, drawSize, drawSize, 8, 8, 64, 64)
+        context.blit(texture, x.roundToInt(), y.roundToInt(), 8f, 8f, drawSize, drawSize, 64, 64)
+        context.blit(texture, x.roundToInt(), y.roundToInt(), 40f, 8f, drawSize, drawSize, 64, 64)
     }
 
     private fun drawItem(context: GuiGraphicsExtractor, stack: ItemStack, x: Float, y: Float, size: Float) {
-        context.pose().pushMatrix()
+        context.pose().pushPose()
         val scale = size / 16f
-        context.pose().translate(x, y)
-        context.pose().scale(scale, scale)
-        context.item(stack.copy(), 0, 0)
-        context.itemDecorations(Minecraft.getInstance().font, stack, 0, 0)
-        context.pose().popMatrix()
+        context.pose().translate(x.toDouble(), y.toDouble(), 0.0)
+        context.pose().scale(scale, scale, 1.0f)
+        context.renderItem(stack.copy(), 0, 0)
+        context.renderItemDecorations(Minecraft.getInstance().font, stack, 0, 0)
+        context.pose().popPose()
     }
 
     private fun fitText(text: String): String {

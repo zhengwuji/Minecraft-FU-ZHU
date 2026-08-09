@@ -10,7 +10,7 @@ import anpilot.client.features.setting.ANSetting
 import net.minecraft.client.Minecraft
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket
 import net.minecraft.world.entity.EntityEvent
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.inventory.InventoryMenu
 import net.minecraft.world.item.Items
 
@@ -43,11 +43,11 @@ class ANAutoTotem : ANBaseModule(
         if (totemSlot != -1 && player.containerMenu is InventoryMenu) {
             val containerId = player.containerMenu.containerId
             if (totemSlot < 9) {
-                gameMode.handleContainerInput(containerId, InventoryMenu.SHIELD_SLOT, totemSlot, ContainerInput.SWAP, player)
+                gameMode.handleInventoryMouseClick(containerId, InventoryMenu.SHIELD_SLOT, totemSlot, ClickType.SWAP, player)
             } else {
-                gameMode.handleContainerInput(containerId, totemSlot, 0, ContainerInput.PICKUP, player)
-                gameMode.handleContainerInput(containerId, InventoryMenu.SHIELD_SLOT, 0, ContainerInput.PICKUP, player)
-                gameMode.handleContainerInput(containerId, totemSlot, 0, ContainerInput.PICKUP, player)
+                gameMode.handleInventoryMouseClick(containerId, totemSlot, 0, ClickType.PICKUP, player)
+                gameMode.handleInventoryMouseClick(containerId, InventoryMenu.SHIELD_SLOT, 0, ClickType.PICKUP, player)
+                gameMode.handleInventoryMouseClick(containerId, totemSlot, 0, ClickType.PICKUP, player)
             }
             clock = 0
         }
@@ -60,7 +60,7 @@ class ANAutoTotem : ANBaseModule(
         val player = minecraft.player ?: return
         val packet = event.packet
         if (packet is ClientboundEntityEventPacket &&
-            packet.eventId == EntityEvent.PROTECTED_FROM_DEATH &&
+            packet.eventId == 35.toByte() &&
             packet.getEntity(level) === player
         ) {
             clock = delay.value.toInt()

@@ -7,7 +7,7 @@ import anpilot.client.features.setting.impl.ItemSelectSetting
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
 import net.minecraft.client.gui.screens.inventory.InventoryScreen
-import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.inventory.ClickType
 
 class ANAutoDrop : ANBaseModule(
     name = "AutoDrop",
@@ -39,11 +39,11 @@ class ANAutoDrop : ANBaseModule(
             if (stack.isEmpty) continue
 
             if (items.value.contains(stack.item)) {
-                gameMode.handleContainerInput(
+                gameMode.handleInventoryMouseClick(
                     player.containerMenu.containerId,
                     slot,
                     1,
-                    ContainerInput.THROW,
+                    ClickType.THROW,
                     player
                 )
             }

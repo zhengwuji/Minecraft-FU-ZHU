@@ -4,15 +4,15 @@ import anpilot.client.features.manager.ANConfigManager
 import com.mojang.blaze3d.platform.NativeImage
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.texture.DynamicTexture
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 import org.slf4j.LoggerFactory
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
 
 object ANDecorTextureManager {
-    private val fallbackDecor = Identifier.fromNamespaceAndPath("anpilotclient", "textures/decor/flower.png")
-    private val customDecor = Identifier.fromNamespaceAndPath("anpilotclient", "custom_decor/click_gui")
+    private val fallbackDecor = Identifier("anpilotclient", "textures/decor/flower.png")
+    private val customDecor = Identifier("anpilotclient", "custom_decor/click_gui")
     private val logger = LoggerFactory.getLogger("ANDecorTextureManager")
 
     private var loadedFile: File? = null
@@ -31,14 +31,14 @@ object ANDecorTextureManager {
             val image = readImage(selectedFile)
             Minecraft.getInstance().textureManager.register(
                 customDecor,
-                DynamicTexture({ "ANPilot Custom Decor" }, image)
+                DynamicTexture(image)
             )
             loadedFile = selectedFile
             loadedModified = modified
             logger.info("Loaded custom Decor texture: {}", selectedFile.absolutePath)
             customDecor
         }.getOrElse {
-            logger.warn("Failed to load custom Decor texture: {}", selectedFile.absolutePath, it)
+            logger.warn("Failed to load custom Decor texture: ${selectedFile.absolutePath}", it)
             fallbackDecor
         }
     }
@@ -58,7 +58,7 @@ object ANDecorTextureManager {
         val image = NativeImage(argb.width, argb.height, false)
         for (y in 0 until argb.height) {
             for (x in 0 until argb.width) {
-                image.setPixel(x, y, argb.getRGB(x, y))
+                image.setPixelRGBA(x, y, argb.getRGB(x, y))
             }
         }
         return image

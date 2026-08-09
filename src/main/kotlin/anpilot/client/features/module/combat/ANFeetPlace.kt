@@ -15,13 +15,13 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket
-import net.minecraft.network.protocol.game.ServerboundAttackPacket
+import net.minecraft.network.protocol.game.ServerboundInteractPacket
 import net.minecraft.network.protocol.game.ServerboundSwingPacket
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.EntityType
@@ -238,7 +238,7 @@ class ANFeetPlace : ANBaseModule(
     private fun placeAll(slot: Int, placements: List<PlacementData>): Boolean {
         val player = mc.player ?: return false
         val swapped = when {
-            slot == player.inventory.selectedSlot -> true
+            slot == player.inventory.selected -> true
             silentSwap.value -> Inventory.startSwap(slot)
             autoSwap.value -> Inventory.swap(slot, swapBack.value)
             else -> false
@@ -252,7 +252,7 @@ class ANFeetPlace : ANBaseModule(
                 placed = true
             }
         } finally {
-            if (slot != player.inventory.selectedSlot) {
+            if (slot != player.inventory.selected) {
                 if (silentSwap.value) {
                     Inventory.endSwap()
                 } else if (autoSwap.value && swapBack.value) {
@@ -322,7 +322,8 @@ class ANFeetPlace : ANBaseModule(
 
     private fun attackEntityId(entityId: Int) {
         val connection = mc.connection ?: return
-        connection.send(ServerboundAttackPacket(entityId))
+        val entity = mc.level?.getEntity(entityId) ?: return
+        connection.send(ServerboundInteractPacket.createAttackPacket(entity, mc.player?.isShiftKeyDown ?: false))
         connection.send(ServerboundSwingPacket(InteractionHand.MAIN_HAND))
     }
 

@@ -5,7 +5,7 @@ import anpilot.client.features.setting.ANSetting
 import anpilot.client.features.setting.impl.ColorGroupSetting
 import anpilot.client.features.setting.impl.ItemSelectSetting
 import net.minecraft.client.Minecraft
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 import net.minecraft.world.entity.item.ItemEntity
 import java.awt.Color
 
@@ -37,6 +37,6 @@ class ANDropsList : ANDraggableHudModule("DropsList", "在HUD上按距离列出�
     }
 
     companion object {
-        private val DROPS_TEXTURE: Identifier = Identifier.fromNamespaceAndPath("anpilotclient", "textures/icons/an2.png")
+        private val DROPS_TEXTURE: Identifier = Identifier("anpilotclient", "textures/icons/an2.png")
     }
 }

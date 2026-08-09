@@ -1,8 +1,8 @@
 package anpilot.client.renderer.render
 
-import net.minecraft.client.gui.GuiGraphicsExtractor
+import anpilot.client.compat.GuiGraphicsExtractor
 import net.minecraft.client.gui.navigation.ScreenRectangle
-import net.minecraft.resources.Identifier
+import anpilot.client.compat.Identifier
 import java.util.Random
 import kotlin.math.PI
 import kotlin.math.cos
@@ -41,14 +41,13 @@ object ANProceduralDecorRenderer {
             val size = options.baseSize * scale
             val randomRotation = lerp(-options.rotationRandomDegrees, options.rotationRandomDegrees, random.nextFloat())
             val rotation = if (options.alignToBorder) sample.tangentDegrees + randomRotation else randomRotation
-            ANRender2DEngine.decorImage(
+            ANRender2DEngine.imageRect(
                 context,
                 texture,
                 sample.x + sample.normalX * options.offset,
                 sample.y + sample.normalY * options.offset,
                 size,
                 size,
-                rotation,
                 options.color,
                 scissorArea
             )

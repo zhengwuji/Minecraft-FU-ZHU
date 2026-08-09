@@ -2,161 +2,161 @@ package anpilot.client.features.utility
 
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
-import net.minecraft.core.Holder
+import net.minecraft.world.Difficulty
 import net.minecraft.world.damagesource.DamageSource
 import net.minecraft.world.effect.MobEffects
 import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.entity.ai.attributes.Attribute
 import net.minecraft.world.entity.ai.attributes.Attributes
-import net.minecraft.world.item.enchantment.Enchantment
-import net.minecraft.world.level.BlockGetter
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.enchantment.EnchantmentHelper
+import net.minecraft.world.item.enchantment.Enchantments
 import net.minecraft.world.level.ClipContext
+import net.minecraft.world.level.Level
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.HitResult
 import net.minecraft.world.phys.Vec3
 import net.minecraft.world.phys.shapes.CollisionContext
-import kotlin.math.floor
-import kotlin.math.max
-import kotlin.math.sqrt
 import kotlin.math.ceil
-import net.minecraft.world.Difficulty
-import net.minecraft.world.entity.ai.attributes.Attribute
-import net.minecraft.world.item.ItemStack
-
-
-
-
+import kotlin.math.max
 
 object ExplosionUtils {
 
-    
-
-
-    fun crystalDamageToEntity(
-        level: BlockGetter,
-        entity: LivingEntity,
-        explosion: Vec3,
+    fun getExplosionDamage(
+        pos: Vec3,
+        power: Float,
+        target: LivingEntity,
         ignoreTerrain: Boolean = false,
         ignoreBlocks: Set<BlockPos> = emptySet()
     ): Float {
-        return damageToEntity(level, entity, explosion, 12.0f, ignoreTerrain, ignoreBlocks)
-    }
+        val mc = Minecraft.getInstance()
+        val level = mc.level ?: return 0f
+        val doublePower = power * 2f
+        val distance = pos.distanceTo(target.position())
+        if (distance > doublePower) return 0f
 
-    
+        val exposure = getExposure(pos, target, level, ignoreTerrain, ignoreBlocks)
+        val impact = (1.0f - distance.toFloat() / doublePower) * exposure
+        val rawDamage = ((impact * impact + impact) / 2.0f * 7.0f * doublePower + 1.0f)
 
-
-    fun damageToEntity(
-        level: BlockGetter,
-        entity: LivingEntity,
-        explosion: Vec3,
-        power: Float,
-        ignoreTerrain: Boolean,
-        ignoreBlocks: Set<BlockPos>
-    ): Float {
-        return damageToEntity(level, entity, entity.position(), entity.boundingBox, explosion, power, ignoreTerrain, ignoreBlocks)
+        return getAppliedDamageToEntity(target, rawDamage)
     }
 
     fun damageToEntity(
-        level: BlockGetter,
-        entity: LivingEntity,
-        entityPosition: Vec3,
-        entityBox: AABB,
-        explosion: Vec3,
-        power: Float,
-        ignoreTerrain: Boolean,
-        ignoreBlocks: Set<BlockPos>
-    ): Float {
-        val rawDamage = getRawExplosionDamage(
-            level, explosion, entityPosition, entityBox,
-            power, ignoreTerrain, ignoreBlocks
-        )
-        return getAppliedDamageToEntity(entity, rawDamage)
-    }
-
-    
-
-
-    private fun getRawExplosionDamage(
-        level: BlockGetter,
-        source: Vec3,
+        level: Level,
+        target: LivingEntity,
         pos: Vec3,
-        box: AABB,
+        ignoreTerrain: Boolean = false,
+        ignoreBlocks: Set<BlockPos> = emptySet()
+    ): Float {
+        return getExplosionDamage(pos, 5.0f, target, ignoreTerrain, ignoreBlocks)
+    }
+
+    fun damageToEntity(
+        level: Level,
+        target: LivingEntity,
+        pos: Vec3,
         power: Float,
         ignoreTerrain: Boolean,
         ignoreBlocks: Set<BlockPos>
     ): Float {
-        val distance = sqrt(pos.distanceToSqr(source))
-        val exposure = getExposure(source, box, level, ignoreTerrain, ignoreBlocks)
-        val w = distance / power
-        val ac = (1.0 - w) * exposure
-        return ((ac * ac + ac) / 2.0 * 7.0 * 12.0 + 1.0).toFloat()
+        return getExplosionDamage(pos, power, target, ignoreTerrain, ignoreBlocks)
     }
 
-    
+    fun damageToEntity(
+        level: Level,
+        target: LivingEntity,
+        extrapolatedPos: Vec3,
+        extrapolatedBox: AABB,
+        explosionPos: Vec3,
+        power: Float = 5.0f,
+        ignoreTerrain: Boolean = false,
+        ignoreBlocks: Set<BlockPos> = emptySet()
+    ): Float {
+        return getExplosionDamage(explosionPos, power, target, ignoreTerrain, ignoreBlocks)
+    }
 
+    fun crystalDamageToEntity(
+        level: Level,
+        target: LivingEntity,
+        pos: Vec3,
+        ignoreTerrain: Boolean = false,
+        ignoreBlocks: Set<BlockPos> = emptySet()
+    ): Float {
+        return getExplosionDamage(pos, 6.0f, target, ignoreTerrain, ignoreBlocks)
+    }
 
-    private fun getExposure(
-        source: Vec3,
-        box: AABB,
-        level: BlockGetter,
+    fun crystalDamageToEntity(
+        level: Level,
+        target: LivingEntity,
+        pos: Vec3,
+        power: Float,
         ignoreTerrain: Boolean,
         ignoreBlocks: Set<BlockPos>
     ): Float {
-        val xDiff = box.maxX - box.minX
-        val yDiff = box.maxY - box.minY
-        val zDiff = box.maxZ - box.minZ
+        return getExplosionDamage(pos, power, target, ignoreTerrain, ignoreBlocks)
+    }
 
-        val xStepBase = 1.0 / (xDiff * 2 + 1)
-        val yStepBase = 1.0 / (yDiff * 2 + 1)
-        val zStepBase = 1.0 / (zDiff * 2 + 1)
+    fun crystalDamageToEntity(
+        level: Level,
+        target: LivingEntity,
+        extrapolatedPos: Vec3,
+        extrapolatedBox: AABB,
+        explosionPos: Vec3,
+        power: Float = 6.0f,
+        ignoreTerrain: Boolean = false,
+        ignoreBlocks: Set<BlockPos> = emptySet()
+    ): Float {
+        return getExplosionDamage(explosionPos, power, target, ignoreTerrain, ignoreBlocks)
+    }
 
-        if (xStepBase <= 0 || yStepBase <= 0 || zStepBase <= 0) return 0f
+    fun getExposure(
+        pos: Vec3,
+        target: LivingEntity,
+        level: Level,
+        ignoreTerrain: Boolean,
+        ignoreBlocks: Set<BlockPos>
+    ): Float {
+        val bounds = target.boundingBox
+        val dx = 1.0 / ((bounds.maxX - bounds.minX) * 2.0 + 1.0)
+        val dy = 1.0 / ((bounds.maxY - bounds.minY) * 2.0 + 1.0)
+        val dz = 1.0 / ((bounds.maxZ - bounds.minZ) * 2.0 + 1.0)
 
-        var misses = 0
-        var hits = 0
+        if (dx < 0.0 || dy < 0.0 || dz < 0.0) return 0f
 
-        val xOffset = (1 - floor(1 / xStepBase) * xStepBase) * 0.5
-        val zOffset = (1 - floor(1 / zStepBase) * zStepBase) * 0.5
+        var rayCount = 0
+        var hitCount = 0
 
-        val xStep = xStepBase * xDiff
-        val yStep = yStepBase * yDiff
-        val zStep = zStepBase * zDiff
+        var x = 0.0
+        while (x <= 1.0) {
+            var y = 0.0
+            while (y <= 1.0) {
+                var z = 0.0
+                while (z <= 1.0) {
+                    val targetX = bounds.minX + (bounds.maxX - bounds.minX) * x
+                    val targetY = bounds.minY + (bounds.maxY - bounds.minY) * y
+                    val targetZ = bounds.minZ + (bounds.maxZ - bounds.minZ) * z
+                    val rayTarget = Vec3(targetX, targetY, targetZ)
 
-        val startX = box.minX + xOffset
-        val startY = box.minY
-        val startZ = box.minZ + zOffset
-        val endX = box.maxX + xOffset
-        val endY = box.maxY
-        val endZ = box.maxZ + zOffset
-
-        var x = startX
-        while (x <= endX) {
-            var y = startY
-            while (y <= endY) {
-                var z = startZ
-                while (z <= endZ) {
-                    val position = Vec3(x, y, z)
-                    if (raycastExplosion(position, source, level, ignoreTerrain, ignoreBlocks) == null) {
-                        misses++
+                    if (clipRay(level, pos, rayTarget, ignoreTerrain, ignoreBlocks) == null) {
+                        hitCount++
                     }
-                    hits++
-                    z += zStep
+                    rayCount++
+                    z += dz
                 }
-                y += yStep
+                y += dy
             }
-            x += xStep
+            x += dx
         }
 
-        return if (hits > 0) misses.toFloat() / hits else 0f
+        return if (rayCount == 0) 0f else hitCount.toFloat() / rayCount.toFloat()
     }
 
-    
-
-
-    private fun raycastExplosion(
+    private fun clipRay(
+        level: Level,
         from: Vec3,
         to: Vec3,
-        level: BlockGetter,
         ignoreTerrain: Boolean,
         ignoreBlocks: Set<BlockPos>
     ): HitResult? {
@@ -165,7 +165,7 @@ object ExplosionUtils {
                 from, to,
                 ClipContext.Block.COLLIDER,
                 ClipContext.Fluid.NONE,
-                CollisionContext.empty()
+                null as net.minecraft.world.entity.Entity?
             )
         )
 
@@ -180,9 +180,6 @@ object ExplosionUtils {
         return result
     }
 
-    
-
-
     fun getAppliedDamageToEntity(entity: LivingEntity, damage: Float): Float {
         val mc = Minecraft.getInstance()
         val level = mc.level ?: return max(0f, damage)
@@ -193,7 +190,6 @@ object ExplosionUtils {
     private fun getReduction(entity: LivingEntity, damageSource: DamageSource, damageIn: Float): Float {
         var damage = damageIn
 
-        
         val mc = Minecraft.getInstance()
         val level = mc.level
         if (level != null && damageSource.scalesWithDifficulty()) {
@@ -204,22 +200,15 @@ object ExplosionUtils {
             }
         }
 
-        
         val armorValue = entity.armorValue.toFloat()
         val armorToughness = getAttributeValue(entity, Attributes.ARMOR_TOUGHNESS).toFloat()
         damage = getDamageAfterArmor(damage, armorValue, armorToughness)
 
-        
         damage = getResistanceReduction(entity, damage)
-
-        
         damage = getProtectionReduction(entity, damage)
 
         return damage
     }
-
-    
-
 
     private fun getDamageAfterArmor(damage: Float, armor: Float, toughness: Float): Float {
         val f = 2.0f + toughness / 4.0f
@@ -230,7 +219,7 @@ object ExplosionUtils {
 
     private fun getAttributeValue(
         entity: LivingEntity,
-        attribute: Holder<Attribute>
+        attribute: Attribute
     ): Double {
         return try {
             entity.getAttributeValue(attribute)
@@ -241,7 +230,7 @@ object ExplosionUtils {
 
     private fun getResistanceReduction(entity: LivingEntity, damageIn: Float): Float {
         var damage = damageIn
-        val resistance = entity.getEffect(MobEffects.RESISTANCE)
+        val resistance = entity.getEffect(MobEffects.DAMAGE_RESISTANCE)
         if (resistance != null) {
             val lvl = resistance.amplifier + 1
             damage *= (1.0f - lvl * 0.2f)
@@ -256,10 +245,6 @@ object ExplosionUtils {
         return damageIn * (1.0f - f)
     }
 
-    
-
-
-
     fun getArmorDurabilityDamage(armorStack: ItemStack, rawDamage: Float): Int {
         val armorValue = armorStack.damageValue
         val maxDurability = armorStack.maxDamage
@@ -268,27 +253,15 @@ object ExplosionUtils {
         return ceil(rawDamage / 4.0).toInt().coerceAtLeast(0)
     }
 
-    
-
-
     private fun getProtectionAmount(entity: LivingEntity): Int {
         var total = 0
         val armorSlots = listOf(EquipmentSlot.FEET, EquipmentSlot.LEGS, EquipmentSlot.CHEST, EquipmentSlot.HEAD)
         for (slot in armorSlots) {
             val stack = entity.getItemBySlot(slot)
             if (stack.isEmpty) continue
-            val enchantments = stack.enchantments
-            for (holder in enchantments.keySet()) {
-                val key = holder.unwrapKey().orElse(null) ?: continue
-                val id = key.identifier().toString()
-                val lvl = enchantments.getLevel(holder)
-                if (id.contains("protection")) {
-                    total += lvl
-                }
-                if (id.contains("blast_protection")) {
-                    total += lvl * 2
-                }
-            }
+            val prot = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.ALL_DAMAGE_PROTECTION, stack)
+            val blastProt = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BLAST_PROTECTION, stack)
+            total += prot + blastProt * 2
         }
         return total
     }

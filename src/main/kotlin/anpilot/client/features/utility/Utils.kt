@@ -45,7 +45,7 @@ class Ore(
 
     init {
         val level = Minecraft.getInstance().level
-        val bottom = level?.minY ?: -64
+        val bottom = level?.minBuildHeight ?: -64
         val height = level?.height ?: 384
         val ctor = WorldGenerationContext::class.java.constructors.first()
         heightContext = ctor.newInstance(null, LevelHeightAccessor.create(bottom, height)) as WorldGenerationContext
@@ -140,7 +140,6 @@ class Ore(
                     registerOre(OrePlacements.ORE_DIAMOND, 6, "Diamond", Color(33, 244, 255).rgb, false)
                     registerOre(OrePlacements.ORE_DIAMOND_BURIED, 6, "Diamond", Color(33, 244, 255).rgb, false)
                     registerOre(OrePlacements.ORE_DIAMOND_LARGE, 6, "Diamond", Color(33, 244, 255).rgb, false)
-                    registerOre(OrePlacements.ORE_DIAMOND_MEDIUM, 6, "Diamond", Color(33, 244, 255).rgb, false)
                     registerOre(OrePlacements.ORE_LAPIS, 6, "Lapis", Color(8, 26, 189).rgb, false)
                     registerOre(OrePlacements.ORE_LAPIS_BURIED, 6, "Lapis", Color(8, 26, 189).rgb, false)
                     registerOre(OrePlacements.ORE_COPPER, 6, "Copper", Color(239, 151, 0).rgb, false)

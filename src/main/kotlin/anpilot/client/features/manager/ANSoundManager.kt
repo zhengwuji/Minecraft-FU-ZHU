@@ -71,7 +71,7 @@ object ANSoundManager {
                 logger.warn("Failed to play sound {}", file.absolutePath, exception)
                 mc.execute {
                     if (fallback != null) playBuiltin(fallback, volume, fallbackPitch)
-                    mc.gui.chat.addClientSystemMessage(Component.literal("[SoundManager] 无法播放声音: ${file.absolutePath}"))
+                    mc.gui.chat.addMessage(Component.literal("[SoundManager] 无法播放声音: ${file.absolutePath}"))
                 }
             }
         }, "ANSoundManager-${file.nameWithoutExtension}").apply {

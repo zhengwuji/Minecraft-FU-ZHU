@@ -22,7 +22,8 @@ import anpilot.client.features.setting.impl.FileSelectSetting
 import anpilot.client.minecraft.gui.MinecraftGuiRenderContext
 import anpilot.client.renderer.ANColor
 import anpilot.client.renderer.render.ANRender3DEngine
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext
+import anpilot.client.compat.LevelRenderContext
+import anpilot.client.compat.Identifier
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
@@ -44,7 +45,6 @@ import net.minecraft.world.phys.HitResult
 import java.awt.Color
 import java.util.Random
 import kotlin.math.floor
-import net.minecraft.resources.Identifier
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.ShulkerBoxMenu
 import net.minecraft.world.level.block.ChestBlock
@@ -71,7 +71,7 @@ class ANAutoBuild : ANBaseModule(
     val offsetX = addSetting(ANSetting("OffsetX", 0, -64, 64) { isPage(Page.RENDER) })
     val offsetY = addSetting(ANSetting("OffsetY", 0, -32, 32) { isPage(Page.RENDER) })
     val offsetZ = addSetting(ANSetting("OffsetZ", 0, -64, 64) { isPage(Page.RENDER) })
-    val rotate = addSetting(ANSetting("Rotate", LitematicLoader.Rotation.NONE) { isPage(Page.RENDER) })
+    val rotate = addSetting(ANSetting("Rotate", 0, 0, 3) { isPage(Page.RENDER) })
     val fill = addSetting(ANSetting("Fill", false) { isPage(Page.RENDER) })
     val outline = addSetting(ANSetting("Outline", true) { isPage(Page.RENDER) })
     val missingColor = addSetting(ANSetting("MissingColor", ColorGroupSetting(Color(70, 170, 255, 70).rgb)) { isPage(Page.RENDER) })
@@ -87,9 +87,6 @@ class ANAutoBuild : ANBaseModule(
 
     var rawProjection = LitematicLoader.Projection("", emptyList(), LitematicLoader.Bounds.EMPTY)
     private var projection = LitematicLoader.Projection("", emptyList(), LitematicLoader.Bounds.EMPTY)
-    private var renderCache = LitematicLoader.RenderCache.EMPTY
-    private var renderCacheBuilder: LitematicLoader.RenderCache.Builder? = null
-    private var cachedTransform = LitematicLoader.Transform(BlockPos.ZERO)
     var placeBlocks = emptyList<BlockPlacer.PlaceBlock>()
     var unbuiltLayerBlocks = emptyList<BlockPlacer.PlaceBlock>()
     private var buildTicks = 0
@@ -132,7 +129,6 @@ class ANAutoBuild : ANBaseModule(
 
         override fun shouldSkipBlock(state: BlockState) = shouldSkipProjectionBlock(state)
         override fun onBlockPlaced(pos: BlockPos) {
-            renderCache.markDirty(pos)
         }
     }
     val placer = BlockPlacer(placerContext)
@@ -157,14 +153,11 @@ class ANAutoBuild : ANBaseModule(
         building = false
         projection = LitematicLoader.Projection("", emptyList(), LitematicLoader.Bounds.EMPTY)
         rawProjection = LitematicLoader.Projection("", emptyList(), LitematicLoader.Bounds.EMPTY)
-        renderCache = LitematicLoader.RenderCache.EMPTY
-        renderCacheBuilder = null
         placeBlocks = emptyList()
         placer.resetCooldown()
         confirmedBuiltBlocks.clear()
         Inventory.endSwap()
         Inventory.swapBack()
-        LitematicLoader.clearTextureMeshes()
         loadedFileName = ""
         resetHudScan()
 
@@ -208,10 +201,10 @@ class ANAutoBuild : ANBaseModule(
             val transform = currentTransform()
             for (projBlock in rawProjection.blocks) {
                 if (shouldSkipProjectionBlock(projBlock.state)) continue
-                val worldPos = transform.apply(projBlock.relativePos)
+                val worldPos = transform.apply(projBlock.pos)
                 if (worldPos.y == currentLayerY) {
                     layerTotal++
-                    val expectedState = transform.apply(projBlock.state)
+                    val expectedState = transform.applyState(projBlock.state)
                     val actual = level.getBlockState(worldPos)
                     if (isProjectionBlockBuilt(actual, expectedState)) {
                         built++
@@ -230,8 +223,6 @@ class ANAutoBuild : ANBaseModule(
             }
         }
 
-        ensureRenderCache()
-        stepRenderCacheBuild()
         scanBuiltBlocks()
 
         if (!building) {
@@ -391,19 +382,18 @@ class ANAutoBuild : ANBaseModule(
 
     override fun renderWorld(context: LevelRenderContext) {
         if (projection.blocks.isEmpty()) return
-        ensureRenderCache()
         LitematicLoader.render(
             context,
-            renderCache,
+            projection,
+            currentTransform(),
             LitematicLoader.RenderOptions(
                 texture = true,
                 fill = fill.value,
                 outline = outline.value,
                 renderBuilt = false,
-                onlyTopFace = building,
                 missingColor = missingColor.value.toANColor(),
                 wrongColor = wrongColor.value.toANColor(),
-                builtColor = builtColor.value.toANColor()
+                correctColor = builtColor.value.toANColor()
             )
         )
 
@@ -475,11 +465,9 @@ class ANAutoBuild : ANBaseModule(
         if (!building) return
         when (packet) {
             is ClientboundBlockUpdatePacket -> {
-                renderCache.updateStatus(packet.pos, packet.blockState)
                 updateConfirmedBuilt(packet.pos, packet.blockState)
             }
             is ClientboundSectionBlocksUpdatePacket -> packet.runUpdates { pos, state ->
-                renderCache.updateStatus(pos, state)
                 updateConfirmedBuilt(pos, state)
             }
         }
@@ -505,7 +493,7 @@ class ANAutoBuild : ANBaseModule(
         if (player != null) {
             origin = player.blockPosition()
             val transform = currentTransform()
-            val transformedY = rawProjection.blocks.map { transform.apply(it.relativePos).y }
+            val transformedY = rawProjection.blocks.map { transform.apply(it.pos).y }
             minWorldY = transformedY.minOrNull() ?: 0
             maxWorldY = transformedY.maxOrNull() ?: 0
             currentBuildLayer = 0
@@ -514,40 +502,15 @@ class ANAutoBuild : ANBaseModule(
         sendClientMessage("Loaded template ${rawProjection.name}: ${rawProjection.blocks.size} blocks")
     }
 
-    private fun ensureRenderCache() {
-        val transform = currentTransform()
-        if (renderCacheBuilder?.matches(projection, transform) == true) return
-        if (renderCache.projectionName == projection.name && cachedTransform == transform && renderCache.blockCount == projection.blocks.size) return
-        startRenderCacheBuild(transform)
-    }
-
-    private fun startRenderCacheBuild(transform: LitematicLoader.Transform = currentTransform()) {
-        cachedTransform = transform
-        renderCacheBuilder = LitematicLoader.RenderCache.Builder(projection, transform)
-        buildTicks = 0
-    }
-
-    private fun stepRenderCacheBuild() {
-        val builder = renderCacheBuilder ?: return
-        val done = builder.step(CACHE_BUILD_BLOCKS_PER_TICK)
-        buildTicks++
-        if (done || buildTicks % CACHE_SNAPSHOT_INTERVAL_TICKS == 0 || renderCache.isEmpty) {
-            LitematicLoader.clearTextureMeshes()
-            renderCache = builder.snapshot()
-            cachedTransform = builder.transform
-        }
-        if (done) {
-            renderCacheBuilder = null
-        }
-    }
-
     fun currentTransform(): LitematicLoader.Transform {
         return LitematicLoader.Transform(
-            origin = origin,
-            offsetX = offsetX.value,
-            offsetY = offsetY.value,
-            offsetZ = offsetZ.value,
-            rotation = rotate.value
+            origin = origin.offset(offsetX.value, offsetY.value, offsetZ.value),
+            rotation = when (rotate.value % 4) {
+                1 -> net.minecraft.world.level.block.Rotation.CLOCKWISE_90
+                2 -> net.minecraft.world.level.block.Rotation.CLOCKWISE_180
+                3 -> net.minecraft.world.level.block.Rotation.COUNTERCLOCKWISE_90
+                else -> net.minecraft.world.level.block.Rotation.NONE
+            }
         )
     }
 
@@ -555,7 +518,7 @@ class ANAutoBuild : ANBaseModule(
         placeBlocks = projection.blocks
             .asSequence()
             .filterNot { it.state.isAir }
-            .map { BlockPlacer.PlaceBlock(transform.apply(it.relativePos), transform.apply(it.state)) }
+            .map { BlockPlacer.PlaceBlock(transform.apply(it.pos), transform.applyState(it.state)) }
             .sortedWith(compareBy<BlockPlacer.PlaceBlock> { it.pos.y }.thenBy { it.pos.x }.thenBy { it.pos.z })
             .toList()
 
@@ -570,7 +533,7 @@ class ANAutoBuild : ANBaseModule(
     }
 
     fun shouldSkipProjectionBlock(state: BlockState): Boolean {
-        return state.isAir || LitematicLoader.isCropOrPlant(state.block) || state.block is LiquidBlock
+        return state.isAir || state.block is net.minecraft.world.level.block.CropBlock || state.block is net.minecraft.world.level.block.BushBlock || state.block is LiquidBlock
     }
 
     private fun isProjectionBlockBuilt(actual: BlockState, expected: BlockState): Boolean {
@@ -610,20 +573,17 @@ class ANAutoBuild : ANBaseModule(
         val name = BuiltInRegistries.BLOCK.getKey(block).path
         if (name.endsWith("_wall_sign")) {
             val baseName = name.substringBefore("_wall_sign") + "_sign"
-            val id = Identifier.tryParse("minecraft:$baseName")
-            val baseBlock = if (id != null) BuiltInRegistries.BLOCK.get(id).map { it.value() }.orElse(Blocks.AIR) else Blocks.AIR
+            val baseBlock = BuiltInRegistries.BLOCK.get(Identifier("minecraft", baseName))
             if (baseBlock != Blocks.AIR) return baseBlock
         }
         if (name.endsWith("_wall_hanging_sign")) {
             val baseName = name.substringBefore("_wall_hanging_sign") + "_hanging_sign"
-            val id = Identifier.tryParse("minecraft:$baseName")
-            val baseBlock = if (id != null) BuiltInRegistries.BLOCK.get(id).map { it.value() }.orElse(Blocks.AIR) else Blocks.AIR
+            val baseBlock = BuiltInRegistries.BLOCK.get(Identifier("minecraft", baseName))
             if (baseBlock != Blocks.AIR) return baseBlock
         }
         if (name.endsWith("_wall_banner")) {
             val baseName = name.substringBefore("_wall_banner") + "_banner"
-            val id = Identifier.tryParse("minecraft:$baseName")
-            val baseBlock = if (id != null) BuiltInRegistries.BLOCK.get(id).map { it.value() }.orElse(Blocks.AIR) else Blocks.AIR
+            val baseBlock = BuiltInRegistries.BLOCK.get(Identifier("minecraft", baseName))
             if (baseBlock != Blocks.AIR) return baseBlock
         }
         if (name == "wall_torch") {
@@ -637,8 +597,7 @@ class ANAutoBuild : ANBaseModule(
         }
         if (name.endsWith("_wall_skull") || name.endsWith("_wall_head")) {
             val baseName = name.replace("_wall_skull", "_skull").replace("_wall_head", "_head")
-            val id = Identifier.tryParse("minecraft:$baseName")
-            val baseBlock = if (id != null) BuiltInRegistries.BLOCK.get(id).map { it.value() }.orElse(Blocks.AIR) else Blocks.AIR
+            val baseBlock = BuiltInRegistries.BLOCK.get(Identifier("minecraft", baseName))
             if (baseBlock != Blocks.AIR) return baseBlock
         }
         return block
@@ -678,8 +637,8 @@ class ANAutoBuild : ANBaseModule(
         val transform = currentTransform()
         return rawProjection.blocks.any { projBlock ->
             if (getCanonicalBlock(projBlock.state.block) != canonicalTarget) return@any false
-            val worldPos = transform.apply(projBlock.relativePos)
-            !isBuildTargetBuilt(worldPos, transform.apply(projBlock.state))
+            val worldPos = transform.apply(projBlock.pos)
+            !isBuildTargetBuilt(worldPos, transform.applyState(projBlock.state))
         }
     }
 
@@ -690,8 +649,8 @@ class ANAutoBuild : ANBaseModule(
             .asSequence()
             .filterNot { shouldSkipProjectionBlock(it.state) }
             .all { projBlock ->
-                val worldPos = transform.apply(projBlock.relativePos)
-                isBuildTargetBuilt(worldPos, transform.apply(projBlock.state))
+                val worldPos = transform.apply(projBlock.pos)
+                isBuildTargetBuilt(worldPos, transform.applyState(projBlock.state))
             }
     }
 
@@ -797,14 +756,13 @@ class ANAutoBuild : ANBaseModule(
         if (layerBuild.value > 0 && building) {
             val maxAllowedY = minWorldY + currentBuildLayer + layerBuild.value - 1
             val filtered = rawProjection.blocks.filter {
-                transform.apply(it.relativePos).y <= maxAllowedY
+                transform.apply(it.pos).y <= maxAllowedY
             }
             projection = rawProjection.copy(blocks = filtered)
         } else {
             projection = rawProjection
         }
         rebuildPlaceCache(transform)
-        startRenderCacheBuild(transform)
         updateUnbuiltLayerBlocks()
     }
 
@@ -849,37 +807,7 @@ class ANAutoBuild : ANBaseModule(
     }
 
     private fun scanBuiltBlocks() {
-        val cacheKey = "${renderCache.projectionName}|${renderCache.transform}|${renderCache.blockCount}|${renderCache.sections.size}"
-        if (renderCache.isEmpty) {
-            resetHudScan()
-            return
-        }
-        if (cacheKey != hudScanCacheKey) {
-            resetHudScan(cacheKey)
-        }
-
-        var remaining = BUILT_SCAN_BLOCKS_PER_TICK
-        while (remaining > 0 && hudScanSectionIndex < renderCache.sections.size) {
-            val section = renderCache.sections[hudScanSectionIndex]
-            while (remaining > 0 && hudScanBlockIndex < section.blocks.size) {
-                if (section.blocks[hudScanBlockIndex].status == LitematicLoader.BlockStatus.BUILT) {
-                    hudScanCount++
-                }
-                hudScanBlockIndex++
-                remaining--
-            }
-            if (hudScanBlockIndex >= section.blocks.size) {
-                hudScanBlockIndex = 0
-                hudScanSectionIndex++
-            }
-        }
-
-        if (hudScanSectionIndex >= renderCache.sections.size) {
-            hudBuiltCount = hudScanCount
-            hudScanCount = 0
-            hudScanSectionIndex = 0
-            hudScanBlockIndex = 0
-        }
+        hudBuiltCount = confirmedBuiltBlocks.size
     }
 
     private fun resetHudScan(cacheKey: String = "") {
@@ -948,7 +876,7 @@ class ANAutoBuild : ANBaseModule(
 
     private fun renderInfoPanel(context: ANGuiRenderContext, secondHeight: Float): Float {
         val name = fitText(context, "Project: ${rawProjection.name}", HUD_MAX_TEXT_WIDTH, HUD_TEXT_SCALE)
-        val author = fitText(context, "Author: ${rawProjection.author}", HUD_MAX_TEXT_WIDTH, HUD_TEXT_SCALE)
+        val author = fitText(context, "Total: ${rawProjection.blocks.size}", HUD_MAX_TEXT_WIDTH, HUD_TEXT_SCALE)
         val blocks = "Built: $hudBuiltCount / ${rawProjection.blocks.filterNot { it.state.isAir }.size}"
         val placing = "AutoPlace: ${if (building) "Running" else "Idle"}"
 
@@ -972,10 +900,10 @@ class ANAutoBuild : ANBaseModule(
             val transform = currentTransform()
             for (projBlock in rawProjection.blocks) {
                 if (shouldSkipProjectionBlock(projBlock.state)) continue
-                val worldPos = transform.apply(projBlock.relativePos)
+                val worldPos = transform.apply(projBlock.pos)
                 if (worldPos.y == currentLayerY) {
                     layerTotal++
-                    if (isBuildTargetBuilt(worldPos, transform.apply(projBlock.state))) {
+                    if (isBuildTargetBuilt(worldPos, transform.applyState(projBlock.state))) {
                         layerBuilt++
                     }
                 }
@@ -1025,8 +953,8 @@ class ANAutoBuild : ANBaseModule(
         for (projBlock in projection.blocks) {
             if (shouldSkipProjectionBlock(projBlock.state)) continue
             val canonical = getCanonicalBlock(projBlock.state.block)
-            val worldPos = transform.apply(projBlock.relativePos)
-            if (isBuildTargetBuilt(worldPos, transform.apply(projBlock.state))) {
+            val worldPos = transform.apply(projBlock.pos)
+            if (isBuildTargetBuilt(worldPos, transform.applyState(projBlock.state))) {
                 blockBuiltCounts[canonical] = (blockBuiltCounts[canonical] ?: 0) + 1
             }
         }
